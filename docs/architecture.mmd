@@ -1,0 +1,39 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#0f172a"
+    primaryTextColor: "#e2e8f0"
+    primaryBorderColor: "#0063e5"
+    lineColor: "#38bdf8"
+    secondaryColor: "#1e293b"
+    tertiaryColor: "#1e293b"
+    clusterBkg: "#f0f7ff"
+    clusterBorder: "#bfdbfe"
+    edgeLabelBackground: "#e8f0ff"
+    mainBkg: "#0f172a"
+    nodeBorder: "#0063e5"
+    titleColor: "#1e1b4b"
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif"
+    fontSize: "13px"
+---
+
+flowchart TB
+    User([User]) --> HTML["index.html<br/>App shell"]
+
+    subgraph Frontend["Frontend (ES Modules)"]
+        HTML --> app["app.js<br/>Entry point"]
+        app --> state["state.js<br/>Convex client + auth"]
+        app --> render["render.js<br/>Body map + panels"]
+        app --> events["events.js<br/>User interactions"]
+        app --> data["data.js<br/>Body zones + schemas"]
+        app --> utils["utils.js<br/>Helpers"]
+    end
+
+    subgraph Convex["Convex Backend"]
+        state -->|"mutations / queries"| auth["auth.ts<br/>Login / register"]
+        state -->|"mutations / queries"| profiles["profiles.ts<br/>CRUD + password"]
+        auth & profiles --> DB[("Database<br/>users, profiles")]
+    end
+
+    state <-->|"localStorage"| Storage[("Browser Storage<br/>user session")]

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://esm.sh cdn.jsdelivr.net cdnjs.cloudflare.com https://challenges.cloudflare.com https://www.googletagmanager.com https://www.google-analytics.com https://plausible.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.neorgon.org; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.convex.cloud https://img.clerk.com https://cdn.neorgon.org https://i.ytimg.com https://yt3.ggpht.com https://www.google-analytics.com; connect-src 'self' https://*.convex.cloud https://*.clerk.accounts.dev https://*.accounts.dev https://clerk-telemetry.com https://api.clerk.com https://challenges.cloudflare.com https://*.workers.dev https://www.google-analytics.com https://www.googletagmanager.com https://plausible.io; frame-src 'self' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://*.accounts.dev https://www.youtube.com https://www.youtube-nocookie.com; worker-src 'self' blob:">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <title>FitProfile | Track Your Measurements</title>
+  <meta name="description" content="Store your measurements, brand sizes, and style notes in one shareable profile. Never forget your fit details or guess gift sizes again">
+  <meta property="og:title" content="FitProfile: Track Your Measurements">
+  <meta property="og:description" content="Store your measurements, brand sizes, and style notes in one shareable profile">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://fitprofile.neorgon.com/">
+  <meta property="og:site_name" content="Neorgon">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="FitProfile: Track Your Measurements">
+  <meta name="twitter:description" content="Store your measurements, brand sizes, and style notes in one shareable profile">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://fitprofile.neorgon.com/">
+  <meta property="og:locale" content="en_US">
+  <meta name="theme-color" content="#040714">
+  <meta property="og:image" content="https://fitprofile.neorgon.com/og-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:image" content="https://fitprofile.neorgon.com/og-preview.jpg">
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Neorgon Header Kit (vendored; ?header=live swaps CSS to CDN) -->
+  <script>(function(){var m=location.search.match(/[?&]theme=([\w-]+)/)||document.cookie.match(/(?:^|;\s*)neo_theme=([\w-]+)/);if(m&&m[1]!=='default')document.documentElement.dataset.theme=decodeURIComponent(m[1]);})();</script>
+  <link rel="stylesheet" href="css/neorgon-header.css">
+  <link rel="stylesheet" href="css/neorgon-themes.css">
+  <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/header/season.css">
+  <script defer src="js/neorgon-header.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "FitProfile",
+    "description": "Track measurements, brands, and style preferences",
+    "url": "https://fitprofile.neorgon.com/",
+    "applicationCategory": "UtilityApplication",
+    "operatingSystem": "Any",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "Neorgon", "url": "https://neorgon.com/" }
+  }
+  </script>
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Header: Pattern B (Auth only) -->
+  <header class="header-bar" data-header-mode="content">
+    <div class="header-logo">
+      <a href="https://neorgon.com/" target="_blank" rel="noopener noreferrer">
+        <img src="energon-classic-logo.png" class="header-logo-img" alt="Logo">
+      </a>
+      <a href="./" class="header-title-link">
+        <h1>FitProfile</h1>
+        <div class="header-subtitle">Track measurements, brands, and style preferences</div>
+      </a>
+    </div>
+
+    <div class="header-right">
+      <button type="button" class="auth-toggle" data-keep-mobile id="authToggle" aria-label="Account">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="10" r="3"/>
+          <path d="M6 19c1.2-3 3.5-4 6-4s4.8 1 6 4"/>
+        </svg>
+      </button>
+<a class="header-home" href="https://neorgon.com/" title="neorgon.com" aria-label="Neorgon home">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+      </a>
+    </div>
+
+    <!-- PATTERN C: Nav + auth (uncomment below, remove Pattern A above, uncomment nav margin-left:auto in CSS)
+    <nav>
+      <button class="nav-link" id="someFeatureBtn">Feature</button>
+      <button class="auth-toggle" id="authToggle" aria-label="Account">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="10" r="3"/>
+          <path d="M6 19c1.2-3 3.5-4 6-4s4.8 1 6 4"/>
+        </svg>
+      </button>
+      <a class="header-home" href="https://neorgon.com/" title="neorgon.com" aria-label="Neorgon home">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+      </a>
+    </nav>
+    -->
+  </header>
+
+  <!-- Auth panel -->
+  <div class="auth-panel" id="authPanel">
+    <div class="auth-panel-inner">
+      <div id="authGate">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="login">Log In</button>
+          <button class="auth-tab" data-tab="register">Register</button>
+        </div>
+        <div class="auth-form" id="authLoginForm">
+          <input type="text" id="authLoginUser" placeholder="Username" autocomplete="username" maxlength="20">
+          <input type="password" id="authLoginPass" placeholder="Password" autocomplete="current-password">
+          <button class="auth-submit" id="authLoginBtn">Log In</button>
+        </div>
+        <div class="auth-form" id="authRegisterForm" hidden>
+          <input type="text" id="authRegUser" placeholder="Choose a username" autocomplete="username" maxlength="20">
+          <input type="password" id="authRegPass" placeholder="Choose a password" autocomplete="new-password">
+          <button class="auth-submit" id="authRegBtn">Register</button>
+        </div>
+      </div>
+      <div id="authUserInfo" hidden>
+        <span class="auth-username" id="authUsername"></span>
+        <button class="auth-logout" id="authLogoutBtn">Log out</button>
+      </div>
+    </div>
+  </div>
+  <div class="auth-divider"></div>
+
+  <!-- Main content -->
+  <main id="main">
+    <!-- Content rendered by render.js -->
+  </main>
+
+  <footer class="info-footer">
+    Part of <a class="footer-link" href="https://neorgon.com/">Neorgon</a>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
