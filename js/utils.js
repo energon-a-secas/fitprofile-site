@@ -1,10 +1,13 @@
 // ── Shared utilities ─────────────────────────────────────────
 // Small, pure helper functions used across multiple modules.
 
-/** Cached element lookup by ID. */
-const _els = {};
+/**
+ * Element lookup by ID.
+ * Deliberately uncached — `render()` replaces whole subtrees, so a cached
+ * node can outlive the DOM it belonged to and silently swallow writes.
+ */
 export function $(id) {
-  return _els[id] || (_els[id] = document.getElementById(id));
+  return document.getElementById(id);
 }
 
 /** Escape HTML special characters. */
@@ -67,17 +70,4 @@ export async function copyToClipboard(text) {
     console.error('Failed to copy:', err);
     showToast('Failed to copy');
   }
-}
-
-// Deep merge objects
-export function deepMerge(target, source) {
-  const result = { ...target };
-  for (const key in source) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      result[key] = deepMerge(result[key] || {}, source[key]);
-    } else {
-      result[key] = source[key];
-    }
-  }
-  return result;
 }

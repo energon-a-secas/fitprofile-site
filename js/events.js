@@ -1,343 +1,430 @@
 // ── Event handlers ───────────────────────────────────────────
-import { state, saveProfile, loadProfile, api, convex, saveAuth, clearAuth } from './state.js';
-import { render, renderZonePanel } from './render.js';
+import {
+  state, saveProfile, loadProfile, api, convex, saveAuth, clearAuth, markDirty,
+} from './state.js';
+import {
+  render, renderZonePanel, refreshCategory, refreshHair, refreshSets,
+  refreshZoneCounts, refreshSaveState, refreshSearch, syncZoneActive,
+} from './render.js';
 import { showToast, copyToClipboard, debounce, $, setNestedValue } from './utils.js';
 import { exportProfile, exportTemplate, importProfile } from './export.js';
+import { createItem, createProduct, createSet, createSetItem } from './data.js';
 
-/** Bind all event listeners */
+/** Bind all event listeners. */
 export function bindEvents() {
   document.addEventListener('click', handleClick);
-  document.addEventListener('input', debounce(handleInput, 500));
+  document.addEventListener('input', handleInput);
   document.addEventListener('change', handleChange);
+  document.addEventListener('keydown', handleKeydown);
+  window.addEventListener('beforeunload', warnIfUnsaved);
 }
 
-/** Handle all click events */
+/* ── Clicks ──────────────────────────────────────────────── */
+
 async function handleClick(e) {
-  const target = e.target;
-
-  // Zone clicks (body map SVG parts, zone sidebar cards)
-  const zone = target.closest('.body-part, .zone-card, [data-zone]');
-  if (zone) {
-    const zoneId = zone.dataset.zone || zone.getAttribute('data-zone');
-    if (zoneId && state.viewMode === 'edit') {
-      state.activeZone = zoneId;
-      renderZonePanel(zoneId);
-      return;
-    }
-  }
-
-  // Also handle clicks on SVG paths within body parts
-  if (target.tagName === 'path' && target.parentElement.classList.contains('body-part')) {
-    const zoneId = target.parentElement.dataset.zone;
-    if (zoneId && state.viewMode === 'edit') {
-      state.activeZone = zoneId;
-      renderZonePanel(zoneId);
-      return;
-    }
-  }
-
-  // Action buttons
-  const action = target.dataset.action;
-  if (action) {
+  const actionEl = e.target.closest('[data-action]');
+  if (actionEl) {
     e.preventDefault();
-    await handleAction(action, target);
+    await handleAction(actionEl.dataset.action, actionEl);
     return;
   }
 
-  // Save profile
-  if (target.id === 'saveProfileBtn') {
-    e.preventDefault();
-    await handleSaveProfile();
+  // A search hit jumps straight to the zone that holds it
+  const hit = e.target.closest('.search-hit');
+  if (hit?.dataset.zone) {
+    openZone(hit.dataset.zone);
     return;
   }
 
-  // Share profile
-  if (target.id === 'shareProfileBtn') {
-    e.preventDefault();
-    openShareModal();
+  // Body-map region or zone card
+  const zoneEl = e.target.closest('.hit-zone, .zone-card');
+  if (zoneEl && state.viewMode === 'edit') {
+    openZone(zoneEl.dataset.zone);
     return;
   }
 
-  // Switch to edit mode
-  if (target.id === 'switchToEditBtn') {
-    e.preventDefault();
-    state.viewMode = 'edit';
-    render();
-    return;
-  }
+  const id = e.target.id;
 
-  // Request edit access (password)
-  if (target.id === 'requestEditBtn') {
-    e.preventDefault();
-    state.showPasswordModal = true;
-    showPasswordModal();
-    return;
-  }
+  if (id === 'saveProfileBtn') { e.preventDefault(); await handleSaveProfile(); return; }
+  if (id === 'shareProfileBtn') { e.preventDefault(); openShareModal(); return; }
+  if (id === 'switchToEditBtn') { e.preventDefault(); state.viewMode = 'edit'; render(); return; }
+  if (id === 'requestEditBtn') { e.preventDefault(); showPasswordModal(); return; }
+  if (id === 'exportProfileBtn') { e.preventDefault(); exportProfile(); return; }
+  if (id === 'exportTemplateBtn') { e.preventDefault(); exportTemplate(); return; }
 
-  // Export/Import
-  if (target.id === 'exportProfileBtn') {
-    e.preventDefault();
-    exportProfile();
-    return;
-  }
-  if (target.id === 'exportTemplateBtn') {
-    e.preventDefault();
-    exportTemplate();
-    return;
-  }
-
-  // Auth toggle
-  if (target.id === 'authToggle') {
+  if (id === 'authToggle') {
     e.preventDefault();
     state.authPanelOpen = !state.authPanelOpen;
-    $('authPanel').classList.toggle('open', state.authPanelOpen);
+    $('authPanel')?.classList.toggle('open', state.authPanelOpen);
+    return;
+  }
+  if (e.target.classList.contains('auth-tab')) { handleAuthTab(e.target); return; }
+  if (id === 'authLoginBtn') { e.preventDefault(); await handleLogin(); return; }
+  if (id === 'authRegBtn') { e.preventDefault(); await handleRegister(); return; }
+  if (id === 'authLogoutBtn') { e.preventDefault(); handleLogout(); return; }
+}
+
+function openZone(zoneId) {
+  if (!zoneId) return;
+  state.activeZone = zoneId;
+  renderZonePanel(zoneId);
+}
+
+function closePanel() {
+  const panel = $('zonePanel');
+  panel?.classList.remove('open');
+  panel?.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('panel-open');
+  state.activeZone = null;
+  syncZoneActive(null);
+  refreshZoneCounts();
+}
+
+/* ── Keyboard ────────────────────────────────────────────── */
+
+function handleKeydown(e) {
+  if (e.key === 'Escape') {
+    if ($('zonePanel')?.classList.contains('open')) {
+      closePanel();
+      return;
+    }
+    document.querySelector('.modal')?.remove();
     return;
   }
 
-  // Auth tabs
-  if (target.classList.contains('auth-tab')) {
-    handleAuthTab(target);
-    return;
-  }
-
-  // Auth login
-  if (target.id === 'authLoginBtn') {
+  // SVG regions are not native buttons — give them button semantics
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList?.contains('hit-zone')) {
     e.preventDefault();
-    await handleLogin();
+    openZone(e.target.dataset.zone);
     return;
   }
 
-  // Auth register
-  if (target.id === 'authRegBtn') {
+  // Enter in a row's last field adds the next row
+  if (e.key === 'Enter' && e.target.dataset?.itemField === 'notes') {
     e.preventDefault();
-    await handleRegister();
+    addItem(e.target.dataset.category);
     return;
   }
-
-  // Auth logout
-  if (target.id === 'authLogoutBtn') {
+  if (e.key === 'Enter' && e.target.dataset?.hairProduct === 'notes') {
     e.preventDefault();
-    handleLogout();
-    return;
+    addHairProduct();
   }
 }
 
-/** Handle input changes */
+/* ── Input ───────────────────────────────────────────────────
+   Typing updates state immediately and only repaints the save badge; the
+   debounced pass does the bookkeeping, so keystrokes never rebuild a form
+   (which is what used to steal focus mid-word). */
+
 function handleInput(e) {
-  const target = e.target;
+  const t = e.target;
 
-  // Profile name/pronouns
-  if (target.id === 'profileName') {
-    state.profile.name = target.value;
-    return;
-  }
-  if (target.id === 'profilePronouns') {
-    state.profile.pronouns = target.value;
+  if (t.id === 'globalSearch') {
+    state.query = t.value;
+    debouncedSearch();
     return;
   }
 
-  // Measurement fields
-  if (target.dataset.field) {
-    const value = target.value ? parseFloat(target.value) : null;
-    setNestedValue(state.profile.measurements, target.dataset.field, value);
+  if (t.id === 'profileName') { state.profile.name = t.value; afterEdit(); return; }
+  if (t.id === 'profilePronouns') { state.profile.pronouns = t.value; afterEdit(); return; }
+
+  if (t.dataset.field) {
+    const parsed = t.value === '' ? null : parseFloat(t.value);
+    setNestedValue(state.profile.measurements, t.dataset.field, Number.isFinite(parsed) ? parsed : null);
+    afterEdit();
     return;
   }
 
-  // Brand fields
-  if (target.dataset.brandField) {
-    const { category, index, brandField } = target.dataset;
-    state.profile.categories[category].brands[index][brandField] = target.value;
-    return;
-  }
-
-  // Preference fields
-  if (target.dataset.prefField) {
-    const { category, prefField } = target.dataset;
-    const values = target.value.split(',').map(v => v.trim()).filter(Boolean);
-    state.profile.categories[category].preferences[prefField] = values;
-    return;
-  }
-
-  // Hair fields (text inputs only — selects handled in handleChange)
-  if (target.dataset.hairField && !target.dataset.selectFor) {
-    state.profile.categories.hair[target.dataset.hairField] = target.value;
-    return;
-  }
-
-  // Custom input for select+custom combos
-  if (target.dataset.customFor) {
-    if (target.dataset.hairField) {
-      state.profile.categories.hair[target.dataset.hairField] = target.value;
+  if (t.dataset.itemField) {
+    const item = findItem(t.dataset.category, t.dataset.id);
+    if (item) {
+      item[t.dataset.itemField] = t.value;
+      afterEdit();
     }
     return;
   }
 
-  // Hair product fields
-  if (target.dataset.hairProduct) {
-    const { index, hairProduct } = target.dataset;
-    state.profile.categories.hair.products[index][hairProduct] = target.value;
+  if (t.dataset.prefField) {
+    const { category, prefField } = t.dataset;
+    state.profile.categories[category].preferences[prefField] =
+      t.value.split(',').map(v => v.trim()).filter(Boolean);
+    afterEdit();
     return;
   }
 
-  // Set fields
-  if (target.dataset.setField) {
-    const { index, setField } = target.dataset;
-    state.profile.sets[index][setField] = target.value;
+  if (t.dataset.hairField && !t.dataset.selectFor) {
+    state.profile.categories.hair[t.dataset.hairField] = t.value;
+    afterEdit();
     return;
   }
 
-  // Set item fields
-  if (target.dataset.setItem) {
-    const { setIndex, itemIndex, setItem } = target.dataset;
-    state.profile.sets[setIndex].items[itemIndex][setItem] = target.value;
+  if (t.dataset.customFor && t.dataset.hairField) {
+    state.profile.categories.hair[t.dataset.hairField] = t.value;
+    afterEdit();
     return;
   }
 
-  // Advanced toggle
-  if (target.dataset.toggleAdvanced) {
-    const category = target.dataset.toggleAdvanced;
-    state.showAdvanced[category] = target.checked;
-    renderZonePanel(state.activeZone);
+  if (t.dataset.hairProduct) {
+    const product = state.profile.categories.hair.products.find(p => p.id === t.dataset.id);
+    if (product) {
+      product[t.dataset.hairProduct] = t.value;
+      afterEdit();
+    }
     return;
+  }
+
+  if (t.dataset.setField) {
+    const set = findSet(t.dataset.id);
+    if (set) {
+      set[t.dataset.setField] = t.value;
+      afterEdit();
+    }
+    return;
+  }
+
+  if (t.dataset.setItem) {
+    const item = findSet(t.dataset.setId)?.items.find(i => i.id === t.dataset.id);
+    if (item) {
+      item[t.dataset.setItem] = t.value;
+      afterEdit();
+    }
   }
 }
 
-/** Handle select changes (dropdowns) */
-function handleChange(e) {
-  const target = e.target;
+const debouncedSearch = debounce(() => refreshSearch(), 180);
 
-  // Import file input
-  if (target.id === 'importFileInput') {
-    const file = target.files[0];
+const debouncedPersist = debounce(() => {
+  markDirty();
+  refreshSaveState();
+  refreshZoneCounts();
+}, 400);
+
+function afterEdit() {
+  state.dirty = true;
+  refreshSaveState();
+  debouncedPersist();
+}
+
+/* ── Change (selects, checkboxes, file) ──────────────────── */
+
+function handleChange(e) {
+  const t = e.target;
+
+  if (t.id === 'importFileInput') {
+    const file = t.files[0];
     if (file) importProfile(file);
-    target.value = '';
+    t.value = '';
     return;
   }
 
-  // Select+custom combo: toggle custom input visibility and update state
-  if (target.dataset.selectFor) {
-    const fieldId = target.dataset.selectFor;
-    const customInput = target.parentElement.querySelector(`[data-custom-for="${fieldId}"]`);
+  if (t.dataset.itemField === 'sizeSystem') {
+    const item = findItem(t.dataset.category, t.dataset.id);
+    if (item) {
+      item.sizeSystem = t.value;
+      if (t.value === 'one') item.size = '';
+      afterEdit();
+      refreshCategory(t.dataset.category);
+    }
+    return;
+  }
 
-    if (target.value === '__custom') {
+  if (t.dataset.selectFor) {
+    const customInput = t.parentElement.querySelector(`[data-custom-for="${t.dataset.selectFor}"]`);
+    if (t.value === '__custom') {
       customInput?.classList.add('visible');
       customInput?.focus();
-      if (target.dataset.hairField) {
-        state.profile.categories.hair[target.dataset.hairField] = customInput?.value || '';
+      if (t.dataset.hairField) {
+        state.profile.categories.hair[t.dataset.hairField] = customInput?.value || '';
       }
     } else {
       customInput?.classList.remove('visible');
-      if (target.dataset.hairField) {
-        state.profile.categories.hair[target.dataset.hairField] = target.value;
+      if (t.dataset.hairField) {
+        state.profile.categories.hair[t.dataset.hairField] = t.value;
       }
     }
+    afterEdit();
     return;
   }
 
-  // Advanced toggle (checkboxes fire change too)
-  if (target.dataset.toggleAdvanced) {
-    const category = target.dataset.toggleAdvanced;
-    state.showAdvanced[category] = target.checked;
-    renderZonePanel(state.activeZone);
-    return;
+  if (t.dataset.toggleAdvanced) {
+    const category = t.dataset.toggleAdvanced;
+    state.showAdvanced[category] = t.checked;
+    refreshCategory(category);
   }
 }
 
-/** Handle action buttons */
-async function handleAction(action, target) {
-  const data = target.dataset;
+/* ── Actions ─────────────────────────────────────────────── */
+
+async function handleAction(action, el) {
+  const d = el.dataset;
 
   switch (action) {
     case 'closePanel':
-      $('zonePanel').classList.remove('open');
-      state.activeZone = null;
+      closePanel();
       break;
 
-    case 'saveZone':
-      await handleSaveProfile();
-      showToast('Saved!');
-      break;
-
-    case 'addBrand': {
-      const cat = state.profile.categories[data.category];
-      cat.brands.push({ name: '', size: '', notes: '', preferred: false });
-      renderZonePanel(state.activeZone);
+    case 'clearSearch': {
+      state.query = '';
+      const input = $('globalSearch');
+      if (input) input.value = '';
+      refreshSearch();
       break;
     }
 
+    case 'addBrand':
+      addItem(d.category);
+      break;
+
     case 'removeBrand': {
-      const cat = state.profile.categories[data.category];
-      cat.brands.splice(parseInt(data.index), 1);
-      renderZonePanel(state.activeZone);
+      const cat = state.profile.categories[d.category];
+      cat.brands = cat.brands.filter(b => b.id !== d.id);
+      afterEdit();
+      refreshCategory(d.category);
+      break;
+    }
+
+    case 'toggleFavorite': {
+      const item = findItem(d.category, d.id);
+      if (item) {
+        item.favorite = !item.favorite;
+        afterEdit();
+        refreshCategory(d.category);
+      }
+      break;
+    }
+
+    case 'setFit': {
+      const item = findItem(d.category, d.id);
+      if (item) {
+        item.fit = item.fit === d.fit ? '' : d.fit;
+        afterEdit();
+        refreshCategory(d.category);
+      }
       break;
     }
 
     case 'addHairProduct':
-      state.profile.categories.hair.products.push({ name: '', notes: '' });
-      renderZonePanel(state.activeZone);
+      addHairProduct();
       break;
 
     case 'removeHairProduct':
-      state.profile.categories.hair.products.splice(parseInt(data.index), 1);
-      renderZonePanel(state.activeZone);
+      state.profile.categories.hair.products =
+        state.profile.categories.hair.products.filter(p => p.id !== d.id);
+      afterEdit();
+      refreshHair();
       break;
 
-    case 'addSet':
-      state.profile.sets.push({ name: '', items: [] });
-      renderZonePanel(state.activeZone);
+    case 'addSet': {
+      const set = createSet();
+      state.profile.sets.push(set);
+      afterEdit();
+      refreshSets();
+      focusRow(set.id);
       break;
+    }
 
     case 'removeSet':
-      state.profile.sets.splice(parseInt(data.index), 1);
-      renderZonePanel(state.activeZone);
+      state.profile.sets = state.profile.sets.filter(s => s.id !== d.id);
+      afterEdit();
+      refreshSets();
       break;
 
     case 'addSetItem': {
-      const setIndex = parseInt(data.setIndex);
-      state.profile.sets[setIndex].items.push({ category: '', brand: '', details: '' });
-      renderZonePanel(state.activeZone);
+      const set = findSet(d.setId);
+      if (set) {
+        const item = createSetItem();
+        set.items.push(item);
+        afterEdit();
+        refreshSets();
+        focusRow(item.id);
+      }
       break;
     }
 
     case 'removeSetItem': {
-      const { setIndex, itemIndex } = data;
-      state.profile.sets[setIndex].items.splice(parseInt(itemIndex), 1);
-      renderZonePanel(state.activeZone);
+      const set = findSet(d.setId);
+      if (set) {
+        set.items = set.items.filter(i => i.id !== d.id);
+        afterEdit();
+        refreshSets();
+      }
       break;
     }
 
     case 'copyShareLink':
-      await copyToClipboard(window.location.origin + '/p/' + state.shareId);
+      await copyToClipboard(`${window.location.origin}/p/${state.shareId}`);
       break;
 
     case 'closeShareModal':
       state.showShareModal = false;
-      $('shareModal').remove();
+      document.getElementById('shareModal')?.remove();
       break;
   }
 }
 
-/** Save profile */
+/** Add a row and put the cursor in it — no hunting for the new field. */
+function addItem(category) {
+  const cat = state.profile.categories[category];
+  if (!cat) return;
+  const item = createItem(category);
+  cat.brands.push(item);
+  afterEdit();
+  refreshCategory(category);
+  focusRow(item.id);
+}
+
+function addHairProduct() {
+  const product = createProduct();
+  state.profile.categories.hair.products.push(product);
+  afterEdit();
+  refreshHair();
+  focusRow(product.id);
+}
+
+function focusRow(itemId) {
+  const row = document.querySelector(`[data-item-id="${itemId}"]`);
+  row?.querySelector('input')?.focus();
+}
+
+function findItem(category, id) {
+  return state.profile.categories[category]?.brands.find(b => b.id === id);
+}
+
+function findSet(id) {
+  return state.profile.sets.find(s => s.id === id);
+}
+
+/* ── Save & share ────────────────────────────────────────── */
+
 async function handleSaveProfile() {
+  const btn = $('saveProfileBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
   try {
     await saveProfile();
-    showToast('Profile saved!');
-
-    // Update UI if needed
-    if ($('shareProfileBtn')) {
-      $('shareProfileBtn').disabled = false;
-    }
+    showToast('Profile saved');
+    refreshSaveState();
+    const shareBtn = $('shareProfileBtn');
+    if (shareBtn) shareBtn.disabled = false;
   } catch (err) {
     console.error(err);
-    showToast('Failed to save profile');
+    showToast('Could not reach the server — changes are stored on this device');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save & get link'; }
   }
 }
 
-/** Open share modal */
+function warnIfUnsaved(e) {
+  if (!state.dirty) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+
 function openShareModal() {
   if (!state.shareId) return;
-
   const shareUrl = `${window.location.origin}/p/${state.shareId}`;
+
+  document.getElementById('shareModal')?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'shareModal';
@@ -346,19 +433,19 @@ function openShareModal() {
     <div class="modal-content">
       <div class="modal-header">
         <h2>Share Your Profile</h2>
-        <button class="close-btn" data-action="closeShareModal" aria-label="Close dialog">✕</button>
+        <button class="close-btn" data-action="closeShareModal" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <div class="share-url">
-          <input type="text" value="${shareUrl}" readonly>
+          <input type="text" value="${shareUrl}" readonly aria-label="Share link">
           <button class="btn" data-action="copyShareLink">Copy</button>
         </div>
-        <div class="qr-code-container" id="qrCodeContainer"></div>
+        <div class="qr-code-container"></div>
         <div class="password-section">
           <label>
             <input type="checkbox" id="setPasswordToggle"> Set password protection
           </label>
-          <div id="passwordInput" style="display:none; margin-top: 12px;">
+          <div class="password-input" hidden>
             <input type="password" placeholder="Enter password" id="sharePassword">
             <button class="btn btn-sm" id="savePasswordBtn">Save Password</button>
           </div>
@@ -369,95 +456,88 @@ function openShareModal() {
 
   document.body.appendChild(modal);
 
-  // Generate QR code
-  import('https://esm.sh/qrcode@1.5.3').then(QRCode => {
-    QRCode.toCanvas(shareUrl, { width: 200 }, (err, canvas) => {
-      if (!err) $('qrCodeContainer').appendChild(canvas);
-    });
+  // Query within the modal — a cached id lookup would resolve to a removed node
+  const qrHost = modal.querySelector('.qr-code-container');
+  import('https://esm.sh/qrcode@1.5.3')
+    .then(QRCode => QRCode.toCanvas(shareUrl, { width: 200 }, (err, canvas) => {
+      if (!err && canvas) qrHost.appendChild(canvas);
+    }))
+    .catch(() => { qrHost.textContent = 'QR code unavailable offline.'; });
+
+  const passwordInput = modal.querySelector('.password-input');
+  modal.querySelector('#setPasswordToggle').addEventListener('change', (e) => {
+    passwordInput.hidden = !e.target.checked;
   });
 
-  // Password toggle
-  $('setPasswordToggle').addEventListener('change', (e) => {
-    $('passwordInput').style.display = e.target.checked ? 'block' : 'none';
-  });
-
-  // Save password
-  $('savePasswordBtn').addEventListener('click', async () => {
-    const password = $('sharePassword').value;
+  modal.querySelector('#savePasswordBtn').addEventListener('click', async () => {
+    const password = modal.querySelector('#sharePassword').value;
     if (!password) return;
-
     try {
-      await convex.mutation(api.profiles.updatePassword, {
-        shareId: state.shareId,
-        password,
-      });
+      await convex.mutation(api.profiles.updatePassword, { shareId: state.shareId, password });
       state.hasPassword = true;
-      showToast('Password saved!');
-    } catch (err) {
+      showToast('Password saved');
+    } catch {
       showToast('Failed to save password');
     }
   });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
 }
 
-/** Show password modal */
 function showPasswordModal() {
   const modal = document.createElement('div');
   modal.id = 'passwordModal';
   modal.className = 'modal';
   modal.innerHTML = `
     <div class="modal-content">
-      <div class="modal-header">
-        <h2>Enter Password</h2>
-      </div>
+      <div class="modal-header"><h2>Enter Password</h2></div>
       <div class="modal-body">
-        <input type="password" id="profilePassword" placeholder="Password">
+        <input type="password" id="profilePassword" placeholder="Password" aria-label="Password">
         <button class="btn btn-primary" id="submitPasswordBtn">Submit</button>
       </div>
     </div>
   `;
-
   document.body.appendChild(modal);
+  modal.querySelector('#profilePassword').focus();
 
-  $('submitPasswordBtn').addEventListener('click', async () => {
-    const password = $('profilePassword').value;
+  modal.querySelector('#submitPasswordBtn').addEventListener('click', async () => {
+    const password = modal.querySelector('#profilePassword').value;
     try {
       await loadProfile(state.shareId, password);
       modal.remove();
       render();
-    } catch (err) {
+    } catch {
       showToast('Invalid password');
     }
   });
 }
 
-/** Auth handlers */
-function handleAuthTab(tab) {
-  const tabs = document.querySelectorAll('.auth-tab');
-  tabs.forEach(t => t.classList.remove('active'));
-  tab.classList.add('active');
+/* ── Auth ────────────────────────────────────────────────── */
 
-  const targetTab = tab.dataset.tab;
-  $('authLoginForm').hidden = targetTab !== 'login';
-  $('authRegisterForm').hidden = targetTab !== 'register';
+function handleAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  $('authLoginForm').hidden = tab.dataset.tab !== 'login';
+  $('authRegisterForm').hidden = tab.dataset.tab !== 'register';
 }
 
 async function handleLogin() {
   const username = $('authLoginUser').value;
   const password = $('authLoginPass').value;
-
   if (!username || !password) {
     showToast('Please enter username and password');
     return;
   }
-
   try {
     const result = await convex.mutation(api.auth.login, { username, password });
     saveAuth(result);
-    showToast(`Welcome back, ${username}!`);
+    showToast(`Welcome back, ${username}`);
     state.authPanelOpen = false;
     $('authPanel').classList.remove('open');
     render();
-  } catch (err) {
+  } catch {
     showToast('Login failed');
   }
 }
@@ -465,16 +545,14 @@ async function handleLogin() {
 async function handleRegister() {
   const username = $('authRegUser').value;
   const password = $('authRegPass').value;
-
   if (!username || !password) {
     showToast('Please enter username and password');
     return;
   }
-
   try {
     const result = await convex.mutation(api.auth.register, { username, password });
     saveAuth(result);
-    showToast(`Account created! Welcome, ${username}!`);
+    showToast(`Account created — welcome, ${username}`);
     state.authPanelOpen = false;
     $('authPanel').classList.remove('open');
     render();

@@ -343,6 +343,165 @@ button:active, .btn:active {
   border-color: var(--border);
 }
 
+/* ── Progress & save state ────────────────────────────────── */
+.profile-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.completeness {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.completeness-track {
+  width: 90px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.completeness-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+  transition: width var(--dur) ease;
+}
+.completeness-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.save-state {
+  font-size: var(--text-xs);
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.save-state[data-state="unsaved"] {
+  color: #fbbf24;
+  border-color: rgba(251,191,36,.28);
+  background: rgba(251,191,36,.08);
+}
+
+/* ── Global search ─────────────────────────────────────────── */
+.search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  animation: fadeIn .3s ease-out .03s both;
+}
+.search-icon {
+  position: absolute;
+  left: 14px;
+  display: flex;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.search-icon svg { width: 16px; height: 16px; }
+#globalSearch {
+  width: 100%;
+  padding: 12px 42px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font);
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+#globalSearch::placeholder { color: var(--text-muted); }
+#globalSearch::-webkit-search-cancel-button { display: none; }
+#globalSearch:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.search-clear {
+  position: absolute;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--dur);
+}
+.search-clear:hover { background: var(--surface-3); color: var(--text-primary); }
+
+.search-results:not(:empty) { margin-bottom: 32px; }
+.search-count,
+.search-empty {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.search-empty { text-transform: none; letter-spacing: 0; font-size: var(--text-sm); }
+.search-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.search-hit {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'title zone' 'detail zone';
+  gap: 2px 12px;
+  width: 100%;
+  padding: 12px 16px;
+  text-align: left;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all var(--dur);
+}
+.search-hit:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  transform: translateX(2px);
+}
+.search-hit-title {
+  grid-area: title;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.search-hit-detail {
+  grid-area: detail;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.search-hit-detail:empty { display: none; }
+.search-hit-zone {
+  grid-area: zone;
+  align-self: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.fav-dot { color: #fbbf24; }
+
 /* ── Body Map Layout ──────────────────────────────────────── */
 .body-map-section {
   display: grid;
@@ -393,11 +552,15 @@ button:active, .btn:active {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  min-height: 44px;
+  padding: 10px 14px;
+  text-align: left;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-left: 3px solid var(--zone-color, var(--accent));
   border-radius: var(--radius-sm);
+  color: inherit;
+  font-family: var(--font);
   cursor: pointer;
   transition: all var(--dur);
   position: relative;
@@ -413,6 +576,24 @@ button:active, .btn:active {
   border-left-width: 4px;
   box-shadow: 0 0 16px rgba(var(--zone-color-rgb, 20,184,166), 0.1);
 }
+.zone-card.is-empty { opacity: .82; }
+.zone-card.is-empty:hover,
+.zone-card.is-empty.active { opacity: 1; }
+
+.zone-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* The hint is guidance for an empty zone, not permanent chrome — it disappears
+   once the zone has content, and on the narrow chip strip. */
+.zone-card-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.zone-card:not(.is-empty) .zone-card-hint { display: none; }
 
 .zone-card-icon {
   width: 28px;
@@ -437,9 +618,23 @@ button:active, .btn:active {
 }
 
 .zone-card-count {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   margin-left: auto;
+  border-radius: 11px;
+  background: rgba(var(--zone-color-rgb, 20,184,166), 0.14);
+  color: var(--zone-color, var(--accent));
+  font-size: var(--text-xs);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.zone-card.is-empty .zone-card-count {
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 /* Zone color custom properties */
@@ -452,119 +647,81 @@ button:active, .btn:active {
 .zone-card[data-zone="accessories"] { --zone-color: var(--zone-accessories); --zone-color-rgb: 236,72,153; }
 .zone-card[data-zone="sets"] { --zone-color: var(--zone-sets); --zone-color-rgb: 139,92,246; }
 
-/* ── SVG Anatomical Body Map ─────────────────────────────── */
-.human-body {
-  --body-scale: 1;
-  width: 207px;
-  position: relative;
-  height: 490px;
+/* ── SVG Anatomical Body Map ─────────────────────────────────
+   Two layers in one SVG: `.body-art` is decoration and never receives
+   pointer events, `.body-hit` owns every hit test. Hovering a region tints
+   the art beneath it, so the highlight always matches the visible shape. */
+.body-map {
   display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
   margin: 0 auto;
-  transform: scale(var(--body-scale));
-  transform-origin: top center;
+  overflow: visible;
 }
 
-.human-body svg.body-part {
-  position: absolute;
-  left: 50%;
+.body-art {
+  pointer-events: none;
+}
+
+.art-part {
+  transition: fill var(--dur) ease, opacity var(--dur) ease, filter var(--dur) ease;
   opacity: 0.5;
-  transition: all 0.25s ease;
+}
+
+/* Each part carries its own glow colour, so every lit/dim rule below can share
+   a single declaration block instead of repeating one per zone. */
+.art-part.zone-head { fill: var(--zone-head); --glow: var(--zone-head); }
+.art-part.zone-torso { fill: var(--zone-torso); --glow: var(--zone-torso); }
+.art-part.zone-waist-legs { fill: var(--zone-waist); --glow: var(--zone-waist); }
+.art-part.zone-feet { fill: var(--zone-feet); --glow: var(--zone-feet); }
+.art-part.zone-arm { fill: var(--zone-arm); --glow: var(--zone-arm); }
+.art-part.zone-hands { fill: var(--zone-hands); --glow: var(--zone-hands); }
+
+/* Hit regions stay invisible at all times. The region is a rounded box for
+   reliable pointing; drawing it would put a shape on screen that does not match
+   the body underneath — the glow on the art is the feedback instead.
+   Keyboard focus is the one exception: it must show where you are. */
+.hit-zone {
   cursor: pointer;
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 2;
+  outline: none;
+}
+.hit-zone:focus-visible {
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
 }
 
-.human-body svg.body-part path {
-  transition: fill 0.25s ease;
+/* Dim the whole body while one region is engaged, then restore and glow the
+   part matching that region. `drop-shadow` needs an explicit colour —
+   `currentColor` on the art layer resolves to inherited text and glows white. */
+.body-map:has(.hit-zone.is-active) .art-part { opacity: 0.28; }
+.body-map:has(.hit-zone[data-zone="head"].is-active) .art-part.zone-head,
+.body-map:has(.hit-zone[data-zone="torso"].is-active) .art-part.zone-torso,
+.body-map:has(.hit-zone[data-zone="waist-legs"].is-active) .art-part.zone-waist-legs,
+.body-map:has(.hit-zone[data-zone="feet"].is-active) .art-part.zone-feet,
+.body-map:has(.hit-zone[data-zone="arm"].is-active) .art-part.zone-arm,
+.body-map:has(.hit-zone[data-zone="hands"].is-active) .art-part.zone-hands {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px var(--glow));
 }
 
-/* Per-zone fill colors */
-.human-body svg.body-part[data-zone="head"] { fill: var(--zone-head); }
-.human-body svg.body-part[data-zone="torso"] { fill: var(--zone-torso); }
-.human-body svg.body-part[data-zone="waist-legs"] { fill: var(--zone-waist); }
-.human-body svg.body-part[data-zone="feet"] { fill: var(--zone-feet); }
-.human-body svg.body-part[data-zone="arm"] { fill: var(--zone-arm); }
-.human-body svg.body-part[data-zone="hands"] { fill: var(--zone-hands); }
-
-/* Hover: brighten + glow */
-.human-body svg.body-part:hover {
-  opacity: 0.95;
-  filter: drop-shadow(0 0 12px currentColor) brightness(1.2);
-}
-
-/* Active zone stays highlighted */
-.human-body svg.body-part.zone-active {
-  opacity: 0.9;
-  filter: drop-shadow(0 0 16px currentColor) brightness(1.15);
-}
-
-/* Combined zone hover (torso group) */
-.human-body:has(svg.zone-torso:hover) svg.zone-torso {
-  opacity: 0.85;
-  filter: drop-shadow(0 0 10px var(--zone-torso));
-}
-.human-body:has(svg.zone-waist-legs:hover) svg.zone-waist-legs {
-  opacity: 0.85;
-  filter: drop-shadow(0 0 10px var(--zone-waist));
-}
-
-/* Individual body part positioning */
-.human-body svg.head {
-  margin-left: -28.5px;
-  top: -6px;
-  z-index: 10;
-}
-.human-body svg.shoulder {
-  margin-left: -53.5px;
-  top: 69px;
-  z-index: 8;
-}
-.human-body svg.arm {
-  margin-left: -78px;
-  top: 112px;
-  z-index: 7;
-}
-.human-body svg.cheast {
-  margin-left: -43.5px;
-  top: 88px;
-  z-index: 9;
-}
-.human-body svg.stomach {
-  margin-left: -37.5px;
-  top: 130px;
-  z-index: 9;
-}
-.human-body svg.legs {
-  margin-left: -46.5px;
-  top: 205px;
-  z-index: 6;
-  clip-path: polygon(
-    0 0, 100% 0,
-    100% 76%,
-    68% 77%,
-    55% 70%,
-    45% 70%,
-    32% 77%,
-    0 76%
-  );
-}
-.human-body svg.hands {
-  margin-left: -102.5px;
-  top: 224px;
-  z-index: 8;
-}
-.human-body svg.feet {
-  margin-left: -46.5px;
-  top: 205px;
-  z-index: 7;
-  clip-path: polygon(
-    0 76%,
-    32% 77%,
-    45% 70%,
-    55% 70%,
-    68% 77%,
-    100% 76%,
-    100% 100%,
-    0 100%
-  );
+/* Hover is a pointing-device affordance only. On touch there is no un-hover, so
+   the last-tapped region would stay lit in a state nobody chose. */
+@media (hover: hover) {
+  .body-map:has(.hit-zone:hover) .art-part { opacity: 0.28; }
+  .body-map:has(.hit-zone[data-zone="head"]:hover) .art-part.zone-head,
+  .body-map:has(.hit-zone[data-zone="torso"]:hover) .art-part.zone-torso,
+  .body-map:has(.hit-zone[data-zone="waist-legs"]:hover) .art-part.zone-waist-legs,
+  .body-map:has(.hit-zone[data-zone="feet"]:hover) .art-part.zone-feet,
+  .body-map:has(.hit-zone[data-zone="arm"]:hover) .art-part.zone-arm,
+  .body-map:has(.hit-zone[data-zone="hands"]:hover) .art-part.zone-hands {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px var(--glow));
+  }
 }
 
 /* ── Zone Panel (slide-in from right) ────────────────────── */
@@ -614,12 +771,21 @@ button:active, .btn:active {
   height: 20px;
   color: var(--panel-accent, var(--accent));
 }
+.panel-header-text { flex: 1; min-width: 0; }
 .panel-header h2 {
   font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
-  flex: 1;
 }
+.panel-header-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* Grip is the mobile sheet's drag/close affordance; on desktop it is absent. */
+.panel-grip { display: none; }
 .close-btn {
   background: none;
   border: 1px solid var(--border);
@@ -801,41 +967,196 @@ button:active, .btn:active {
   background: var(--accent);
 }
 
-/* ── Brands list ──────────────────────────────────────────── */
+/* ── Item rows ─────────────────────────────────────────────────
+   One stored item is three stacked bands: identity, size + fit, notes.
+   The size only means something alongside the system it belongs to, so the
+   two sit in a single bordered pair rather than as separate fields. */
 .brands-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.brand-item {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr 1fr auto;
+
+.item-row {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
-  padding: 8px;
+  padding: 12px;
   background: var(--surface-1);
   border: 1px solid var(--border-subtle);
+  border-left: 3px solid transparent;
   border-radius: var(--radius-sm);
-  transition: border-color var(--dur);
+  transition: border-color var(--dur), background var(--dur);
 }
-.brand-item:hover {
+.item-row:hover { border-color: var(--border); }
+.item-row:focus-within {
   border-color: var(--border);
+  border-left-color: var(--panel-accent, var(--accent));
+  background: var(--surface-2);
 }
-.brand-item input {
+.item-row.is-fav { border-left-color: #fbbf24; }
+
+.item-row input,
+.item-row select {
   padding: 8px 10px;
   background: rgba(255,255,255,.02);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: var(--text-sm);
+  font-family: var(--font);
+  min-width: 0;
   transition: border-color var(--dur);
 }
-.brand-item input:focus {
+.item-row input:focus,
+.item-row select:focus {
   outline: none;
   border-color: var(--panel-accent, var(--accent));
 }
-.brand-item input::placeholder {
+.item-row input::placeholder { color: var(--text-muted); }
+.item-row input:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.item-row-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.item-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.fav-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--dur);
+}
+.fav-btn svg { width: 16px; height: 16px; fill: none; }
+.fav-btn:hover { color: #fbbf24; background: rgba(251,191,36,.08); }
+.fav-btn[aria-pressed="true"] { color: #fbbf24; }
+.fav-btn[aria-pressed="true"] svg { fill: #fbbf24; }
+
+.item-row-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.field-pair {
+  display: flex;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.field-pair .item-size {
+  flex: 1;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  font-family: ui-monospace, 'SF Mono', 'Courier New', monospace;
+}
+.field-pair .item-system {
+  flex-shrink: 0;
+  width: auto;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.field-pair .item-system option {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.fit-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.fit-chip {
+  padding: 7px 11px;
+  background: rgba(255,255,255,.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all var(--dur);
+}
+.fit-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+.fit-chip.selected {
+  background: var(--accent-dim);
+  border-color: var(--panel-accent, var(--accent));
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.item-notes {
+  width: 100%;
+  font-size: var(--text-xs) !important;
+}
+
+.empty-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  padding: 4px 0 2px;
+}
+.field-note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.add-row { align-self: flex-start; }
+
+.section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* ── Measurement inputs in the panel ─────────────────────── */
+.measure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+.measure-field { margin-bottom: 0; }
+.input-unit { position: relative; display: flex; }
+.input-unit input { padding-right: 40px !important; }
+.input-unit .unit {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 /* ── Products/Sets lists ──────────────────────────────────── */
@@ -863,11 +1184,23 @@ button:active, .btn:active {
   border-color: var(--panel-accent, var(--accent));
 }
 
+/* A set stacks its title above its pieces, so it opts out of the shared row flex */
+.set-item {
+  display: block;
+}
+.set-item-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.set-item-head input { flex: 1; }
+
 .set-items {
   margin-top: 12px;
   padding-left: 12px;
   border-left: 2px solid var(--border-subtle);
 }
+.set-subitem:last-of-type { margin-bottom: 12px; }
 
 /* ── Preferences section ──────────────────────────────────── */
 .preferences-section {
@@ -1051,6 +1384,7 @@ button:active, .btn:active {
   border-radius: 20px;
   border: 1px solid var(--border-subtle);
 }
+.category-section li.is-fav { border-color: rgba(251,191,36,.35); }
 
 /* ── Modals ────────────────────────────────────────────────── */
 .modal {
@@ -1132,7 +1466,7 @@ button:active, .btn:active {
 
 /* ── Responsive ───────────────────────────────────────────── */
 
-/* Tablet: stack body map above zone sidebar */
+/* Tablet: the map stacks above the zone list */
 @media (max-width: 900px) {
   .container { padding: 24px 20px; }
 
@@ -1142,75 +1476,123 @@ button:active, .btn:active {
   }
 
   .body-map-container {
-    max-width: 500px;
+    max-width: 460px;
     margin: 0 auto;
     width: 100%;
   }
 
   .zone-sidebar {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 8px;
   }
-  .zone-card { padding: 10px 12px; }
-}
-
-/* Small tablet / large phone */
-@media (max-width: 700px) {
-  .zone-sidebar {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Mobile */
-@media (max-width: 600px) {
-  .container { padding: 16px 12px; }
-
-  .profile-header {
-    flex-direction: column;
-    text-align: center;
-    padding: 20px 16px;
-    gap: 14px;
-  }
-  .profile-avatar { width: 56px; height: 56px; }
-  .profile-avatar svg { width: 28px; height: 28px; }
-
-  .body-map-container {
-    padding: 16px 8px;
-  }
-
-  .human-body {
-    --body-scale: 0.78;
-    height: calc(490px * 0.78);
-  }
-
-  .zone-sidebar {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-  .zone-card {
-    padding: 10px;
-    gap: 8px;
-  }
-  .zone-card-icon { width: 24px; height: 24px; }
-  .zone-card-icon svg { width: 14px; height: 14px; }
+  .zone-card-hint { display: none; }
 
   .zone-panel {
+    width: 440px;
+  }
+}
+
+/* ── Phone: the panel becomes a bottom sheet ──────────────────
+   A right-hand drawer on a 390px screen is just a full-screen takeover with
+   the wrong animation. Below this width the panel rises from the bottom,
+   leaving the map visible above it, and the zone list becomes a swipeable
+   chip strip so it never eats the fold. */
+@media (max-width: 700px) {
+  .container { padding: 16px 12px 24px; }
+
+  .profile-header {
+    flex-wrap: wrap;
+    padding: 18px 16px;
+    gap: 14px;
+  }
+  .profile-avatar { width: 52px; height: 52px; }
+  .profile-avatar svg { width: 26px; height: 26px; }
+  .profile-fields { flex: 1 1 180px; }
+  .profile-meta {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-basis: 100%;
+  }
+
+  .body-map-container { padding: 20px 12px; }
+  .body-map { max-width: 210px; }
+
+  /* Horizontal chip strip — scrolls under the thumb, snaps per chip.
+     It sits above the map: on a phone the chips are the fast path, and a
+     500px-tall figure would otherwise push every zone below the fold. */
+  .zone-sidebar {
+    display: flex;
+    flex-direction: row;
+    grid-template-columns: none;
+    order: -1;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding-bottom: 4px;
+    margin-inline: -12px;
+    padding-inline: 12px;
+    scrollbar-width: none;
+  }
+  .zone-sidebar::-webkit-scrollbar { display: none; }
+  .zone-card {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    padding: 10px 12px;
+    border-left-width: 0;
+    border-top: 3px solid var(--zone-color, var(--accent));
+    border-radius: var(--radius-sm);
+  }
+  .zone-card:hover,
+  .zone-card.active { transform: none; border-left-width: 0; border-top-width: 3px; }
+  .zone-card-count { margin-left: 4px; }
+
+  .zone-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
     width: 100%;
     max-width: 100%;
+    height: auto;
+    max-height: 86dvh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transform: translateY(100%);
+    box-shadow: 0 -12px 40px rgba(0,0,0,.55);
+    overscroll-behavior: contain;
   }
+  .zone-panel.open { transform: translateY(0); }
 
-  .brand-item {
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
+  .panel-grip {
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: 10px auto 2px;
+    border-radius: 2px;
+    background: var(--border-strong);
+    cursor: pointer;
   }
-  .brand-item input:nth-child(3) {
-    grid-column: 1 / -1;
-  }
+  .panel-header { padding: 12px 18px; top: 0; }
+  .panel-body { padding: 18px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 
-  .action-bar {
-    flex-direction: column;
+  /* The sheet covers the page, so the page must not scroll behind it */
+  body.panel-open { overflow: hidden; }
+
+  .item-row-detail { gap: 6px; }
+  .field-pair { flex-basis: 100%; }
+  .fit-group { width: 100%; }
+  .fit-chip { flex: 1; padding: 9px 8px; }
+
+  .search-hit {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'title' 'detail' 'zone';
   }
+  .search-hit:hover { transform: none; }
+
+  .action-bar { flex-direction: column; }
   .action-bar .btn { width: 100%; }
   .export-bar {
     flex-direction: row;
@@ -1223,19 +1605,12 @@ button:active, .btn:active {
     justify-content: center;
   }
 
-  .measurement-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .profile-card {
-    padding: 20px 16px;
-  }
+  .measurement-grid { grid-template-columns: repeat(2, 1fr); }
+  .profile-card { padding: 20px 16px; }
 }
 
 /* Very small screens */
 @media (max-width: 380px) {
-  .human-body {
-    --body-scale: 0.65;
-    height: calc(490px * 0.65);
-  }
+  .body-map { max-width: 180px; }
+  .measure-grid { grid-template-columns: 1fr; }
 }

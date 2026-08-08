@@ -1,11 +1,9 @@
 // ── State management ─────────────────────────────────────────
 import { ConvexHttpClient } from "https://esm.sh/convex@1.16.2/browser";
-import { getDefaultProfile } from './data.js';
+import { getDefaultProfile, normalizeProfile } from './data.js';
 
-// Convex client
 export const convex = new ConvexHttpClient("https://adjoining-gnat-230.convex.cloud");
 
-// API function references
 export const api = {
   auth: {
     register: "auth:register",
@@ -21,151 +19,185 @@ export const api = {
   },
 };
 
+const DRAFT_KEY = 'fitprofile-draft';
+const AUTH_KEY = 'fitprofile-user';
+
 // Mutable app state
 export const state = {
-  // Auth
-  user: null, // { userId, username }
+  user: null,
 
-  // Current profile
   profile: getDefaultProfile(),
   shareId: null,
   hasPassword: false,
-  isOwner: false, // true if user created this profile or entered correct password
+  isOwner: false,
 
-  // UI state
-  viewMode: 'edit', // 'edit' | 'view'
+  viewMode: 'edit',
   activeZone: null,
-  showAdvanced: {}, // { [category]: boolean }
+  showAdvanced: {},
+  query: '',
+  dirty: false,
 
-  // Modals
   showPasswordModal: false,
   showShareModal: false,
-
-  // Auth panel
   authPanelOpen: false,
 };
 
-// Load profile from shareId
+/* ── Local draft ─────────────────────────────────────────────
+   The profile survives a refresh whether or not Convex is reachable,
+   keyed per shareId so two profiles never overwrite each other. */
+
+function draftKey(shareId) {
+  return shareId ? `${DRAFT_KEY}:${shareId}` : DRAFT_KEY;
+}
+
+export function saveDraft() {
+  try {
+    localStorage.setItem(draftKey(state.shareId), JSON.stringify({
+      savedAt: Date.now(),
+      profile: state.profile,
+    }));
+  } catch (err) {
+    console.warn('Could not store draft locally:', err);
+  }
+}
+
+/** Apply a locally stored draft. Returns true when one was found. */
+export function loadDraft(shareId = null) {
+  try {
+    const raw = localStorage.getItem(draftKey(shareId));
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.profile) return false;
+    state.profile = normalizeProfile(parsed.profile);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearDraft(shareId = null) {
+  localStorage.removeItem(draftKey(shareId));
+}
+
+/** A draft started before the first save moves under the new shareId. */
+function migrateDraft(newShareId) {
+  const anon = localStorage.getItem(DRAFT_KEY);
+  if (anon) {
+    localStorage.setItem(draftKey(newShareId), anon);
+    localStorage.removeItem(DRAFT_KEY);
+  }
+}
+
+export function markDirty() {
+  state.dirty = true;
+  saveDraft();
+}
+
+/* ── Remote profile ──────────────────────────────────────── */
+
 export async function loadProfile(shareId, password = null) {
-  try {
-    const profile = await convex.query(api.profiles.getByShareId, { shareId });
+  const profile = await convex.query(api.profiles.getByShareId, { shareId });
 
-    if (!profile) {
-      // New profile
-      state.shareId = shareId;
-      state.profile = getDefaultProfile();
-      state.isOwner = true;
-      state.viewMode = 'edit';
-      return;
-    }
-
-    // Existing profile
+  if (!profile) {
     state.shareId = shareId;
-    state.hasPassword = profile.hasPassword;
-
-    if (profile.hasPassword && !password) {
-      // Requires password
-      state.viewMode = 'view';
-      state.showPasswordModal = true;
-      return;
-    }
-
-    if (password) {
-      // Verify password
-      const result = await convex.mutation(api.profiles.verifyPassword, { shareId, password });
-      if (!result.valid) {
-        throw new Error('Invalid password');
-      }
-      state.isOwner = true;
-    }
-
-    // Load profile data
-    state.profile.name = profile.name || '';
-    state.profile.pronouns = profile.pronouns || '';
-    state.profile.photoUrl = profile.photoUrl || null;
-    Object.assign(state.profile, profile.data);
-
-    // Check if user owns this profile
-    if (state.user && profile.userId === state.user.userId) {
-      state.isOwner = true;
-    }
-
-    state.viewMode = state.isOwner ? 'edit' : 'view';
-  } catch (err) {
-    console.error('Failed to load profile:', err);
-    throw err;
+    state.profile = getDefaultProfile();
+    state.isOwner = true;
+    state.viewMode = 'edit';
+    return;
   }
+
+  state.shareId = shareId;
+  state.hasPassword = profile.hasPassword;
+
+  if (profile.hasPassword && !password) {
+    state.viewMode = 'view';
+    state.showPasswordModal = true;
+    return;
+  }
+
+  if (password) {
+    const result = await convex.mutation(api.profiles.verifyPassword, { shareId, password });
+    if (!result.valid) throw new Error('Invalid password');
+    state.isOwner = true;
+  }
+
+  // Reconcile against the current schema — a profile stored before a category
+  // existed must not leave the renderer with missing branches.
+  state.profile = normalizeProfile({
+    name: profile.name,
+    pronouns: profile.pronouns,
+    photoUrl: profile.photoUrl,
+    ...(profile.data || {}),
+  });
+
+  if (state.user && profile.userId === state.user.userId) {
+    state.isOwner = true;
+  }
+
+  state.viewMode = state.isOwner ? 'edit' : 'view';
 }
 
-// Save profile
 export async function saveProfile() {
-  try {
-    const data = {
-      measurements: state.profile.measurements,
-      categories: state.profile.categories,
-      sets: state.profile.sets,
-    };
+  const data = {
+    measurements: state.profile.measurements,
+    categories: state.profile.categories,
+    sets: state.profile.sets,
+  };
 
-    if (state.shareId) {
-      // Update existing
-      await convex.mutation(api.profiles.save, {
-        shareId: state.shareId,
-        userId: state.user?.userId,
-        name: state.profile.name,
-        pronouns: state.profile.pronouns,
-        photoUrl: state.profile.photoUrl,
-        data,
-      });
-    } else {
-      // Create new - generate shareId client-side
-      const { nanoid } = await import('https://esm.sh/nanoid@5.0.4');
-      const shareId = nanoid(8);
+  if (state.shareId) {
+    await convex.mutation(api.profiles.save, {
+      shareId: state.shareId,
+      userId: state.user?.userId,
+      name: state.profile.name,
+      pronouns: state.profile.pronouns,
+      photoUrl: state.profile.photoUrl,
+      data,
+    });
+  } else {
+    const { nanoid } = await import('https://esm.sh/nanoid@5.0.4');
+    const shareId = nanoid(8);
 
-      await convex.mutation(api.profiles.create, {
-        shareId,
-        userId: state.user?.userId,
-        name: state.profile.name,
-        pronouns: state.profile.pronouns,
-        photoUrl: state.profile.photoUrl,
-        data,
-      });
+    await convex.mutation(api.profiles.create, {
+      shareId,
+      userId: state.user?.userId,
+      name: state.profile.name,
+      pronouns: state.profile.pronouns,
+      photoUrl: state.profile.photoUrl,
+      data,
+    });
 
-      state.shareId = shareId;
-      state.isOwner = true;
-
-      // Update URL without reload
-      const newUrl = `/p/${shareId}`;
-      window.history.pushState({}, '', newUrl);
-    }
-
-    return state.shareId;
-  } catch (err) {
-    console.error('Failed to save profile:', err);
-    throw err;
+    state.shareId = shareId;
+    state.isOwner = true;
+    migrateDraft(shareId);
+    window.history.pushState({}, '', `/p/${shareId}`);
   }
+
+  state.dirty = false;
+  saveDraft();
+  return state.shareId;
 }
 
-// Auth helpers
+/* ── Auth ────────────────────────────────────────────────── */
+
 export function loadAuth() {
-  const stored = localStorage.getItem('fitprofile-user');
+  const stored = localStorage.getItem(AUTH_KEY);
   if (stored) {
     try {
       state.user = JSON.parse(stored);
-    } catch (err) {
-      localStorage.removeItem('fitprofile-user');
+    } catch {
+      localStorage.removeItem(AUTH_KEY);
     }
   }
 }
 
 export function saveAuth(user) {
   state.user = user;
-  localStorage.setItem('fitprofile-user', JSON.stringify(user));
+  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
 }
 
 export function clearAuth() {
   state.user = null;
-  localStorage.removeItem('fitprofile-user');
+  localStorage.removeItem(AUTH_KEY);
 }
 
-// Initialize on load
 loadAuth();

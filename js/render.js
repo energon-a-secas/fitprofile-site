@@ -1,9 +1,15 @@
 // ── DOM rendering ────────────────────────────────────────────
 import { state } from './state.js';
-import { escHtml, $ } from './utils.js';
-import { BODY_ZONES, CATEGORY_NAMES, MEASUREMENT_FIELDS, ZONE_COLORS, FIELD_OPTIONS } from './data.js';
+import { escHtml, getNestedValue } from './utils.js';
+import { renderBodyMap } from './bodymap.js';
+import {
+  BODY_ZONES, CATEGORY_NAMES, MEASUREMENT_FIELDS, ZONE_COLORS,
+  FIELD_OPTIONS, SIZE_SYSTEMS, FIT_OPTIONS, CATEGORY_META,
+} from './data.js';
 
 const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/></svg>';
+const STAR_ICON = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.4-5.8-3.1-5.8 3.1 1.1-6.4L2.6 9.4l6.5-.9z"/></svg>';
+const SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 
 export function render() {
   if (state.viewMode === 'view') {
@@ -14,7 +20,7 @@ export function render() {
 }
 
 function renderEditMode() {
-  const main = $('main');
+  const main = document.getElementById('main');
   if (!main) return;
 
   main.innerHTML = `
@@ -26,23 +32,38 @@ function renderEditMode() {
           </svg>
         </div>
         <div class="profile-fields">
-          <input type="text" id="profileName" placeholder="Your name" value="${escHtml(state.profile.name)}" class="profile-name-input">
+          <input type="text" id="profileName" placeholder="Your name" value="${escHtml(state.profile.name)}" class="profile-name-input" autocomplete="name">
           <input type="text" id="profilePronouns" placeholder="Pronouns (optional)" value="${escHtml(state.profile.pronouns)}" class="profile-pronouns-input">
+        </div>
+        <div class="profile-meta">
+          ${renderCompleteness()}
+          <span class="save-state" id="saveState" data-state="${state.dirty ? 'unsaved' : 'saved'}">
+            ${state.dirty ? 'Unsaved changes' : 'All changes stored'}
+          </span>
         </div>
       </div>
 
-      <div class="body-map-section">
+      <div class="search-bar">
+        <span class="search-icon" aria-hidden="true">${SEARCH_ICON}</span>
+        <input type="search" id="globalSearch" placeholder="Search any brand, size or note…"
+               value="${escHtml(state.query)}" autocomplete="off"
+               aria-label="Search everything in this profile">
+        ${state.query ? '<button class="search-clear" data-action="clearSearch" aria-label="Clear search">&times;</button>' : ''}
+      </div>
+      <div id="searchResults" class="search-results">${state.query ? renderSearchResults() : ''}</div>
+
+      <div class="body-map-section"${state.query ? ' hidden' : ''}>
         <div class="body-map-container">
-          <div class="body-map-title">Tap a zone to edit</div>
-          ${renderBodyMap()}
+          <div class="body-map-title">Choose a zone</div>
+          ${renderBodyMap(state.activeZone)}
         </div>
-        <div class="zone-sidebar">
+        <div class="zone-sidebar" role="list">
           ${renderZoneSidebar()}
         </div>
       </div>
 
       <div class="action-bar">
-        <button class="btn btn-primary" id="saveProfileBtn">Save Profile</button>
+        <button class="btn btn-primary" id="saveProfileBtn">Save &amp; get link</button>
         <button class="btn" id="shareProfileBtn" ${!state.shareId ? 'disabled' : ''}>Share Profile</button>
       </div>
       <div class="action-bar export-bar">
@@ -50,15 +71,137 @@ function renderEditMode() {
         <button class="btn btn-sm" id="exportTemplateBtn">Export Template</button>
         <label class="btn btn-sm import-label" tabindex="0">
           Import JSON
-          <input type="file" accept=".json" id="importFileInput" hidden>
+          <input type="file" accept=".json,application/json" id="importFileInput" hidden>
         </label>
       </div>
     </div>
   `;
 }
 
+/** Profile completeness — which zones still hold nothing. */
+function renderCompleteness() {
+  const filled = BODY_ZONES.filter(z => getZoneItemCount(z) > 0).length;
+  const pct = Math.round((filled / BODY_ZONES.length) * 100);
+  return `
+    <div class="completeness" title="${filled} of ${BODY_ZONES.length} zones have data">
+      <div class="completeness-track"><div class="completeness-fill" style="width:${pct}%"></div></div>
+      <span class="completeness-label">${filled}/${BODY_ZONES.length} zones</span>
+    </div>
+  `;
+}
+
+function renderZoneSidebar() {
+  return BODY_ZONES.map(z => {
+    const count = getZoneItemCount(z);
+    const isActive = state.activeZone === z.id;
+    return `
+      <button type="button" class="zone-card${isActive ? ' active' : ''}${count === 0 ? ' is-empty' : ''}"
+              data-zone="${z.id}" role="listitem" aria-pressed="${isActive}">
+        <span class="zone-card-icon">${z.icon}</span>
+        <span class="zone-card-text">
+          <span class="zone-card-label">${z.name}</span>
+          <span class="zone-card-hint">${escHtml(z.hint)}</span>
+        </span>
+        <span class="zone-card-count">${count > 0 ? count : '+'}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function getZoneItemCount(zone) {
+  let count = 0;
+  for (const catKey of zone.categories) {
+    if (catKey === 'hair') {
+      const h = state.profile.categories.hair;
+      if (h.type || h.cutInstructions || h.specialNotes || h.products.length > 0) count++;
+    } else if (catKey === 'outfits') {
+      count += state.profile.sets.length;
+    } else {
+      const cat = state.profile.categories[catKey];
+      if (cat?.brands) count += cat.brands.filter(b => b.name).length;
+    }
+  }
+  for (const f of MEASUREMENT_FIELDS[zone.id] || []) {
+    if (getNestedValue(state.profile.measurements, f.key)) count++;
+  }
+  return count;
+}
+
+/* ── Global search ───────────────────────────────────────────
+   Finds a stored detail without having to remember its zone. */
+function renderSearchResults() {
+  const q = state.query.trim().toLowerCase();
+  if (!q) return '';
+
+  const hits = [];
+  const zoneOf = cat => BODY_ZONES.find(z => z.categories.includes(cat));
+
+  for (const [catKey, cat] of Object.entries(state.profile.categories)) {
+    if (catKey === 'hair') {
+      const h = cat;
+      const haystack = [h.type, h.cutInstructions, h.specialNotes].join(' ');
+      if (haystack.toLowerCase().includes(q)) {
+        hits.push({ zone: zoneOf('hair'), category: 'hair', title: h.type || 'Hair notes', detail: h.cutInstructions || h.specialNotes });
+      }
+      for (const p of h.products) {
+        if (`${p.name} ${p.notes}`.toLowerCase().includes(q)) {
+          hits.push({ zone: zoneOf('hair'), category: 'hair', title: p.name, detail: p.notes });
+        }
+      }
+      continue;
+    }
+    for (const item of cat.brands || []) {
+      if (`${item.name} ${item.size} ${item.notes}`.toLowerCase().includes(q)) {
+        hits.push({
+          zone: zoneOf(catKey),
+          category: catKey,
+          title: item.name || '(unnamed)',
+          detail: [formatSize(item), item.fit && `fits ${item.fit}`, item.notes].filter(Boolean).join(' · '),
+          favorite: item.favorite,
+        });
+      }
+    }
+  }
+
+  for (const set of state.profile.sets) {
+    const haystack = [set.name, ...set.items.flatMap(i => [i.category, i.brand, i.details])].join(' ');
+    if (haystack.toLowerCase().includes(q)) {
+      hits.push({ zone: zoneOf('outfits'), category: 'outfits', title: set.name || 'Untitled set', detail: `${set.items.length} pieces` });
+    }
+  }
+
+  if (hits.length === 0) {
+    return `<p class="search-empty">Nothing stored matches “${escHtml(state.query)}”.</p>`;
+  }
+
+  return `
+    <p class="search-count">${hits.length} match${hits.length === 1 ? '' : 'es'}</p>
+    <ul class="search-list">
+      ${hits.map(h => `
+        <li>
+          <button type="button" class="search-hit" data-zone="${h.zone?.id || ''}">
+            <span class="search-hit-title">${escHtml(h.title)}${h.favorite ? ' <span class="fav-dot" aria-label="favorite">★</span>' : ''}</span>
+            <span class="search-hit-detail">${escHtml(h.detail || '')}</span>
+            <span class="search-hit-zone">${CATEGORY_NAMES[h.category] || h.category} · ${escHtml(h.zone?.name || '')}</span>
+          </button>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+}
+
+function formatSize(item) {
+  if (!item.size) return '';
+  const sys = SIZE_SYSTEMS[item.sizeSystem];
+  if (!sys || item.sizeSystem === 'one') return item.size;
+  if (item.sizeSystem === 'cm' || item.sizeSystem === 'mm') return `${item.size} ${item.sizeSystem}`;
+  if (item.sizeSystem === 'letter' || item.sizeSystem === 'numeric') return item.size;
+  return `${sys.label} ${item.size}`;
+}
+
+/* ── View mode ───────────────────────────────────────────── */
 function renderViewMode() {
-  const main = $('main');
+  const main = document.getElementById('main');
   if (!main) return;
 
   main.innerHTML = `
@@ -96,6 +239,8 @@ function renderMeasurementsView() {
   if (m.footLength) items.push({ label: 'Foot', value: `${m.footLength} cm` });
   if (m.hands?.wrist) items.push({ label: 'Wrist', value: `${m.hands.wrist} cm` });
   if (m.hands?.ringFinger) items.push({ label: 'Ring Finger', value: `${m.hands.ringFinger} mm` });
+  if (m.hands?.pinky) items.push({ label: 'Pinky', value: `${m.hands.pinky} mm` });
+  if (m.hands?.palmWidth) items.push({ label: 'Palm Width', value: `${m.hands.palmWidth} cm` });
 
   if (items.length === 0) return '';
 
@@ -115,170 +260,121 @@ function renderMeasurementsView() {
 function renderCategorySummary() {
   let html = '';
   for (const [key, data] of Object.entries(state.profile.categories)) {
-    if (!data.brands || data.brands.length === 0) continue;
-    const filledBrands = data.brands.filter(b => b.name);
-    if (filledBrands.length === 0) continue;
+    if (key === 'hair') continue;
+    const filled = (data.brands || []).filter(b => b.name);
+    if (filled.length === 0) continue;
     html += `
       <div class="category-section">
         <h4>${CATEGORY_NAMES[key] || key}</h4>
         <ul>
-          ${filledBrands.map(b => `<li>${escHtml(b.name)}${b.size ? `, ${escHtml(b.size)}` : ''}${b.notes ? ` (${escHtml(b.notes)})` : ''}</li>`).join('')}
+          ${filled.map(b => `
+            <li${b.favorite ? ' class="is-fav"' : ''}>
+              ${b.favorite ? '<span class="fav-dot" aria-label="favorite">★</span> ' : ''}
+              <strong>${escHtml(b.name)}</strong>${formatSize(b) ? ` — ${escHtml(formatSize(b))}` : ''}${b.fit ? ` <em>(${escHtml(b.fit)})</em>` : ''}${b.notes ? ` · ${escHtml(b.notes)}` : ''}
+            </li>
+          `).join('')}
         </ul>
       </div>
     `;
   }
+
+  const hair = state.profile.categories.hair;
+  if (hair.type || hair.cutInstructions || hair.specialNotes || hair.products.length) {
+    html += `
+      <div class="category-section">
+        <h4>Hair</h4>
+        <ul>
+          ${hair.type ? `<li><strong>Type</strong> — ${escHtml(hair.type)}</li>` : ''}
+          ${hair.cutInstructions ? `<li><strong>Cut</strong> — ${escHtml(hair.cutInstructions)}</li>` : ''}
+          ${hair.specialNotes ? `<li><strong>Notes</strong> — ${escHtml(hair.specialNotes)}</li>` : ''}
+          ${hair.products.filter(p => p.name).map(p => `<li>${escHtml(p.name)}${p.notes ? ` · ${escHtml(p.notes)}` : ''}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  for (const set of state.profile.sets) {
+    if (!set.name && set.items.length === 0) continue;
+    html += `
+      <div class="category-section">
+        <h4>${escHtml(set.name) || 'Outfit'}</h4>
+        <ul>
+          ${set.items.map(i => `<li>${escHtml([i.category, i.brand, i.details].filter(Boolean).join(' · '))}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
   return html;
 }
 
-function renderZoneSidebar() {
-  return BODY_ZONES.map(z => {
-    const count = getZoneItemCount(z);
-    const isActive = state.activeZone === z.id;
-    return `
-      <div class="zone-card${isActive ? ' active' : ''}" data-zone="${z.id}">
-        <div class="zone-card-icon">${z.icon}</div>
-        <span class="zone-card-label">${z.name}</span>
-        ${count > 0 ? `<span class="zone-card-count">${count}</span>` : ''}
-      </div>
-    `;
-  }).join('');
-}
+/* ── Zone panel ──────────────────────────────────────────── */
 
-function getZoneItemCount(zone) {
-  let count = 0;
-  for (const catKey of zone.categories) {
-    if (catKey === 'hair') {
-      const h = state.profile.categories.hair;
-      if (h.type || h.cutInstructions || h.products.length > 0) count++;
-    } else if (catKey === 'outfits') {
-      count += state.profile.sets.length;
-    } else {
-      const cat = state.profile.categories[catKey];
-      if (cat?.brands) count += cat.brands.filter(b => b.name).length;
-    }
-  }
-  // Count measurements too
-  const fields = MEASUREMENT_FIELDS[zone.id] || [];
-  for (const f of fields) {
-    const val = getNestedValue(state.profile.measurements, f.key);
-    if (val) count++;
-  }
-  return count;
-}
-
-function renderBodyMap() {
-  const activeZone = state.activeZone;
-  const activeClass = (zone) => activeZone === zone ? ' zone-active' : '';
-
-  return `
-    <div class="human-body">
-      <svg data-zone="head" class="body-part head${activeClass('head')}" xmlns="http://www.w3.org/2000/svg" width="56.594" height="95.031" viewBox="0 0 56.594 95.031">
-        <path d="M15.92 68.5l8.8 12.546 3.97 13.984-9.254-7.38-4.622-15.848zm27.1 0l-8.8 12.546-3.976 13.988 9.254-7.38 4.622-15.848zm6.11-27.775l.108-11.775-21.16-14.742L8.123 26.133 8.09 40.19l-3.24.215 1.462 9.732 5.208 1.81 2.36 11.63 9.72 11.018 10.856-.324 9.56-10.37 1.918-11.952 5.207-1.81 1.342-9.517zm-43.085-1.84l-.257-13.82L28.226 11.9l23.618 15.755-.216 10.37 4.976-17.085L42.556 2.376 25.49 0 10.803 3.673.002 24.415z"/>
-      </svg>
-
-      <svg data-zone="torso" class="body-part shoulder zone-torso${activeClass('torso')}" xmlns="http://www.w3.org/2000/svg" width="109.532" height="46.594" viewBox="0 0 109.532 46.594">
-        <path d="M38.244-.004l1.98 9.232-11.653 2.857-7.474-2.637zm33.032 0l-1.98 9.232 11.653 2.857 7.474-2.637zm21.238 10.54l4.044-2.187 12.656 14 .07 5.33S92.76 10.66 92.515 10.535zm-1.285.58c-.008.28 17.762 18.922 17.762 18.922l.537 16.557-6.157-10.55L91.5 30.988 83.148 15.6zm-74.224-.58L12.962 8.35l-12.656 14-.062 5.325s16.52-17.015 16.764-17.14zm1.285.58C18.3 11.396.528 30.038.528 30.038L-.01 46.595l6.157-10.55 11.87-5.056L26.374 15.6z"/>
-      </svg>
-
-      <svg data-zone="torso" class="body-part cheast zone-torso${activeClass('torso')}" xmlns="http://www.w3.org/2000/svg" width="86.594" height="45.063" viewBox="0 0 86.594 45.063">
-        <path d="M19.32 0l-9.225 16.488-10.1 5.056 6.15 4.836 4.832 14.07 11.2 4.616 17.85-8.828-4.452-34.7zm47.934 0l9.225 16.488 10.1 5.056-6.15 4.836-4.833 14.07-11.2 4.616-17.844-8.828 4.45-34.7z"/>
-      </svg>
-
-      <svg data-zone="torso" class="body-part stomach zone-torso${activeClass('torso')}" xmlns="http://www.w3.org/2000/svg" width="75.25" height="107.594" viewBox="0 0 75.25 107.594">
-        <path d="M19.25 7.49l16.6-7.5-.5 12.16-14.943 7.662zm-10.322 8.9l6.9 3.848-.8-9.116zm5.617-8.732L1.32 2.15 6.3 15.6zm-8.17 9.267l9.015 5.514 1.54 11.028-8.795-5.735zm15.53 5.89l.332 8.662 12.286-2.665.664-11.826zm14.61 84.783L33.28 76.062l-.08-20.53-11.654-5.736-1.32 37.5zM22.735 35.64L22.57 46.3l11.787 3.166.166-16.657zm-14.16-5.255L16.49 35.9l1.1 11.25-8.8-7.06zm8.79 22.74l-9.673-7.28-.84 9.78L-.006 68.29l10.564 14.594 5.5.883 1.98-20.735zM56 7.488l-16.6-7.5.5 12.16 14.942 7.66zm10.32 8.9l-6.9 3.847.8-9.116zm-5.617-8.733L73.93 2.148l-4.98 13.447zm8.17 9.267l-9.015 5.514-1.54 11.03 8.8-5.736zm-15.53 5.89l-.332 8.662-12.285-2.665-.664-11.827zm-14.61 84.783l3.234-31.536.082-20.532 11.65-5.735 1.32 37.5zm13.78-71.957l.166 10.66-11.786 3.168-.166-16.657zm14.16-5.256l-7.915 5.514-1.1 11.25 8.794-7.06zm-8.79 22.743l9.673-7.28.84 9.78 6.862 12.66-10.564 14.597-5.5.883-1.975-20.74z"/>
-      </svg>
-
-      <svg data-zone="waist-legs" class="body-part legs zone-waist-legs${activeClass('waist-legs')}" xmlns="http://www.w3.org/2000/svg" width="93.626" height="286.625" viewBox="0 0 93.626 286.625">
-        <path d="M17.143 138.643l-.664 5.99 4.647 5.77 1.55 9.1 3.1 1.33 2.655-13.755 1.77-4.88-1.55-3.107zm20.582.444l-3.32 9.318-7.082 13.755 1.77 12.647 5.09-14.2 4.205-7.982zm-26.557-12.645l5.09 27.29-3.32-1.777-2.656 8.875zm22.795 42.374l-1.55 4.88-3.32 20.634-.442 27.51 4.65 26.847-.223-34.39 4.87-13.754.663-15.087zM23.34 181.24l1.106 41.267 8.853 33.28-9.628-4.55-16.045-57.8 5.533-36.384zm15.934 80.536l-.664 18.415-1.55 6.435h-4.647l-1.327-4.437-1.55-.222.332 4.437-5.864-1.778-1.55-.887-6.64-1.442-.22-5.214 6.418-10.87 4.426-5.548 10.844-4.437zM13.63 3.076v22.476l15.71 31.073 9.923 30.85L38.23 66.1zm25.49 30.248l.118-.148-.793-2.024L21.9 12.992l-1.242-.44L31.642 40.93zM32.865 44.09l6.812 17.6 2.274-21.596-1.344-3.43zM6.395 61.91l.827 25.34 12.816 35.257-3.928 10.136L3.5 88.133zM30.96 74.69l.345.826 6.47 15.48-4.177 38.342-6.594-3.526 5.715-35.7zm45.5 63.953l.663 5.99-4.647 5.77-1.55 9.1-3.1 1.33-2.655-13.755-1.77-4.88 1.55-3.107zm-20.582.444l3.32 9.318 7.08 13.755-1.77 12.647-5.09-14.2-4.2-7.987zm3.762 29.73l1.55 4.88 3.32 20.633.442 27.51-4.648 26.847.22-34.39-4.867-13.754-.67-15.087zm10.623 12.424l-1.107 41.267-8.852 33.28 9.627-4.55 16.046-57.8-5.533-36.384zM54.33 261.777l.663 18.415 1.546 6.435h4.648l1.328-4.437 1.55-.222-.333 4.437 5.863-1.778 1.55-.887 6.638-1.442.222-5.214-6.418-10.868-4.426-5.547-10.844-4.437zm25.643-258.7v22.476L64.26 56.625l-9.923 30.85L55.37 66.1zM54.48 33.326l-.118-.15.793-2.023L71.7 12.993l1.24-.44L61.96 40.93zm6.255 10.764l-6.812 17.6-2.274-21.595 1.344-3.43zm26.47 17.82l-.827 25.342-12.816 35.256 3.927 10.136 12.61-44.51zM62.64 74.693l-.346.825-6.47 15.48 4.178 38.342 6.594-3.527-5.715-35.7zm19.792 51.75l-5.09 27.29 3.32-1.776 2.655 8.875zM9.495-.007l.827 21.373-7.028 42.308-3.306-34.155zm2.068 27.323L26.24 59.707l3.307 26-6.2 36.58L9.91 85.046l-.827-38.342zM84.103-.01l-.826 21.375 7.03 42.308 3.306-34.155zm-2.066 27.325L67.36 59.707l-3.308 26 6.2 36.58 13.436-37.24.827-38.34z"/>
-      </svg>
-
-      <svg data-zone="feet" class="body-part feet${activeClass('feet')}" xmlns="http://www.w3.org/2000/svg" width="93.626" height="286.625" viewBox="0 0 93.626 286.625">
-        <path d="M17.143 138.643l-.664 5.99 4.647 5.77 1.55 9.1 3.1 1.33 2.655-13.755 1.77-4.88-1.55-3.107zm20.582.444l-3.32 9.318-7.082 13.755 1.77 12.647 5.09-14.2 4.205-7.982zm-26.557-12.645l5.09 27.29-3.32-1.777-2.656 8.875zm22.795 42.374l-1.55 4.88-3.32 20.634-.442 27.51 4.65 26.847-.223-34.39 4.87-13.754.663-15.087zM23.34 181.24l1.106 41.267 8.853 33.28-9.628-4.55-16.045-57.8 5.533-36.384zm15.934 80.536l-.664 18.415-1.55 6.435h-4.647l-1.327-4.437-1.55-.222.332 4.437-5.864-1.778-1.55-.887-6.64-1.442-.22-5.214 6.418-10.87 4.426-5.548 10.844-4.437zM13.63 3.076v22.476l15.71 31.073 9.923 30.85L38.23 66.1zm25.49 30.248l.118-.148-.793-2.024L21.9 12.992l-1.242-.44L31.642 40.93zM32.865 44.09l6.812 17.6 2.274-21.596-1.344-3.43zM6.395 61.91l.827 25.34 12.816 35.257-3.928 10.136L3.5 88.133zM30.96 74.69l.345.826 6.47 15.48-4.177 38.342-6.594-3.526 5.715-35.7zm45.5 63.953l.663 5.99-4.647 5.77-1.55 9.1-3.1 1.33-2.655-13.755-1.77-4.88 1.55-3.107zm-20.582.444l3.32 9.318 7.08 13.755-1.77 12.647-5.09-14.2-4.2-7.987zm3.762 29.73l1.55 4.88 3.32 20.633.442 27.51-4.648 26.847.22-34.39-4.867-13.754-.67-15.087zm10.623 12.424l-1.107 41.267-8.852 33.28 9.627-4.55 16.046-57.8-5.533-36.384zM54.33 261.777l.663 18.415 1.546 6.435h4.648l1.328-4.437 1.55-.222-.333 4.437 5.863-1.778 1.55-.887 6.638-1.442.222-5.214-6.418-10.868-4.426-5.547-10.844-4.437zm25.643-258.7v22.476L64.26 56.625l-9.923 30.85L55.37 66.1zM54.48 33.326l-.118-.15.793-2.023L71.7 12.993l1.24-.44L61.96 40.93zm6.255 10.764l-6.812 17.6-2.274-21.595 1.344-3.43zm26.47 17.82l-.827 25.342-12.816 35.256 3.927 10.136 12.61-44.51zM62.64 74.693l-.346.825-6.47 15.48 4.178 38.342 6.594-3.527-5.715-35.7zm19.792 51.75l-5.09 27.29 3.32-1.776 2.655 8.875zM9.495-.007l.827 21.373-7.028 42.308-3.306-34.155zm2.068 27.323L26.24 59.707l3.307 26-6.2 36.58L9.91 85.046l-.827-38.342zM84.103-.01l-.826 21.375 7.03 42.308 3.306-34.155zm-2.066 27.325L67.36 59.707l-3.308 26 6.2 36.58 13.436-37.24.827-38.34z"/>
-      </svg>
-
-      <svg data-zone="arm" class="body-part arm${activeClass('arm')}" xmlns="http://www.w3.org/2000/svg" width="156.344" height="119.25" viewBox="0 0 156.344 119.25">
-        <path d="M21.12 56.5a1.678 1.678 0 0 1-.427.33l.935 8.224 12.977-13.89 1.2-8.958A168.2 168.2 0 0 0 21.12 56.5zm1.387 12.522l-18.07 48.91 5.757 1.333 19.125-39.44 3.518-22.047zm-5.278-18.96l2.638 18.74-17.2 46.023L.01 113.05l6.644-35.518zm118.015 6.44a1.678 1.678 0 0 0 .426.33l-.934 8.222-12.977-13.89-1.2-8.958A168.2 168.2 0 0 1 135.24 56.5zm-1.39 12.52l18.073 48.91-5.758 1.333-19.132-39.44-3.52-22.05zm5.28-18.96l-2.64 18.74 17.2 46.023 2.658-1.775-6.643-35.518zm-103.1-12.323a1.78 1.78 0 0 1 .407-.24l3.666-27.345L33.07.015l-7.258 10.58-6.16 37.04.566 4.973a151.447 151.447 0 0 1 15.808-14.87zm84.3 0a1.824 1.824 0 0 0-.407-.24l-3.666-27.345L123.3.015l7.258 10.58 6.16 37.04-.566 4.973a151.447 151.447 0 0 0-15.822-14.87zM22.288 8.832l-3.3 35.276-2.2-26.238zm111.79 0l3.3 35.276 2.2-26.238z"/>
-      </svg>
-
-      <svg data-zone="hands" class="body-part hands${activeClass('hands')}" xmlns="http://www.w3.org/2000/svg" width="205" height="38.938" viewBox="0 0 205 38.938">
-        <path d="M21.255-.002l2.88 6.9 8.412 1.335.664 12.458-4.427 17.8-2.878-.22 2.8-11.847-2.99-.084-4.676 12.6-3.544-.446 4.4-12.736-3.072-.584-5.978 13.543-4.428-.445 6.088-14.1-2.1-1.25-7.528 12.012-3.764-.445L12.4 12.9l-1.107-1.78L.665 15.57 0 13.124l8.635-7.786zm162.49 0l-2.88 6.9-8.412 1.335-.664 12.458 4.427 17.8 2.878-.22-2.8-11.847 2.99-.084 4.676 12.6 3.544-.446-4.4-12.736 3.072-.584 5.978 13.543 4.428-.445-6.088-14.1 2.1-1.25 7.528 12.012 3.764-.445L192.6 12.9l1.107-1.78 10.628 4.45.665-2.447-8.635-7.786z"/>
-      </svg>
-    </div>
-  `;
-}
-
-/** Render zone detail panel */
+/** Render the zone panel and open it. */
 export function renderZonePanel(zoneId) {
   const zone = BODY_ZONES.find(z => z.id === zoneId);
-  if (!zone) return;
-
-  const panel = $('zonePanel');
-  if (!panel) return;
+  const panel = document.getElementById('zonePanel');
+  if (!zone || !panel) return;
 
   const color = ZONE_COLORS[zoneId] || '#14b8a6';
   panel.style.setProperty('--panel-accent', color);
+  panel.dataset.zone = zoneId;
 
-  const measurements = MEASUREMENT_FIELDS[zoneId] || [];
-  const categories = zone.categories || [];
-
-  let html = `
+  panel.innerHTML = `
+    <div class="panel-grip" data-action="closePanel" aria-hidden="true"></div>
     <div class="panel-header">
-      <div class="panel-header-icon" style="background: ${color}22">${zone.icon.replace('currentColor', color)}</div>
-      <h2>${zone.name}</h2>
+      <div class="panel-header-icon">${zone.icon}</div>
+      <div class="panel-header-text">
+        <h2 id="zonePanelTitle">${zone.name}</h2>
+        <p class="panel-header-hint">${escHtml(zone.hint)}</p>
+      </div>
       <button class="close-btn" data-action="closePanel" aria-label="Close panel">&times;</button>
     </div>
-    <div class="panel-body">
+    <div class="panel-body">${renderPanelBody(zone)}</div>
   `;
+
+  panel.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('panel-open');
+  syncZoneActive(zoneId);
+}
+
+function renderPanelBody(zone) {
+  const measurements = MEASUREMENT_FIELDS[zone.id] || [];
+  let html = '';
 
   if (measurements.length > 0) {
-    html += `<div class="section"><h3>Measurements</h3>`;
-    measurements.forEach(field => {
-      const value = getNestedValue(state.profile.measurements, field.key) || '';
+    html += `<div class="section"><h3>Measurements</h3><div class="measure-grid">`;
+    for (const field of measurements) {
+      const value = getNestedValue(state.profile.measurements, field.key);
       html += `
-        <div class="form-group">
-          <label>${field.label} (${field.unit})</label>
-          <input type="${field.type}" data-field="${field.key}" value="${escHtml(value)}" placeholder="0" />
+        <div class="form-group measure-field">
+          <label for="m-${field.key}">${field.label}</label>
+          <div class="input-unit">
+            <input type="number" inputmode="decimal" step="0.1" min="0" id="m-${field.key}"
+                   data-field="${field.key}" value="${value ?? ''}" placeholder="—">
+            <span class="unit">${field.unit}</span>
+          </div>
         </div>
       `;
-    });
-    html += `</div>`;
+    }
+    html += `</div></div>`;
   }
 
-  categories.forEach(catKey => {
-    if (catKey === 'hair') {
-      html += renderHairSection();
-    } else if (catKey === 'outfits') {
-      html += renderSetsSection();
-    } else {
-      html += renderCategorySection(catKey);
-    }
-  });
+  for (const catKey of zone.categories) {
+    if (catKey === 'hair') html += renderHairSection();
+    else if (catKey === 'outfits') html += renderSetsSection();
+    else html += renderCategorySection(catKey);
+  }
 
-  html += `
-      <button class="btn btn-primary" data-action="saveZone" style="width: 100%; margin-top: 8px;">Save Changes</button>
-    </div>
-  `;
-
-  panel.innerHTML = html;
-  panel.classList.add('open');
-
-  highlightActiveZone(zoneId);
-  updateSidebarActive(zoneId);
+  return html;
 }
 
-function highlightActiveZone(zoneId) {
-  document.querySelectorAll('.human-body .body-part').forEach(el => {
-    el.classList.remove('zone-active');
-  });
-  document.querySelectorAll(`.human-body .body-part[data-zone="${zoneId}"]`).forEach(el => {
-    el.classList.add('zone-active');
-  });
-}
-
-function updateSidebarActive(zoneId) {
-  document.querySelectorAll('.zone-card').forEach(el => {
-    el.classList.toggle('active', el.dataset.zone === zoneId);
-  });
+/** Re-render only one category, so typing elsewhere keeps focus. */
+export function refreshCategory(catKey) {
+  const node = document.querySelector(`.section[data-category="${catKey}"]`);
+  if (!node) return;
+  node.outerHTML = renderCategorySection(catKey);
 }
 
 function renderCategorySection(catKey) {
@@ -286,50 +382,95 @@ function renderCategorySection(catKey) {
   if (!cat) return '';
 
   const isAdvanced = state.showAdvanced[catKey] || false;
+  const meta = CATEGORY_META[catKey] || {};
+  const filled = cat.brands.filter(b => b.name).length;
 
-  let html = `
-    <div class="section">
+  return `
+    <div class="section" data-category="${catKey}">
       <div class="section-header">
-        <h3>${CATEGORY_NAMES[catKey] || catKey}</h3>
+        <h3>${CATEGORY_NAMES[catKey] || catKey}${filled ? ` <span class="section-count">${filled}</span>` : ''}</h3>
         <label class="toggle">
           <input type="checkbox" ${isAdvanced ? 'checked' : ''} data-toggle-advanced="${catKey}">
-          <span>Advanced</span>
+          <span>Preferences</span>
         </label>
       </div>
 
       <div class="brands-list">
-        ${cat.brands.map((brand, i) => `
-          <div class="brand-item" data-brand-index="${i}">
-            <input type="text" placeholder="Brand" value="${escHtml(brand.name)}" data-brand-field="name" data-category="${catKey}" data-index="${i}">
-            <input type="text" placeholder="Size" value="${escHtml(brand.size)}" data-brand-field="size" data-category="${catKey}" data-index="${i}">
-            <input type="text" placeholder="Notes" value="${escHtml(brand.notes)}" data-brand-field="notes" data-category="${catKey}" data-index="${i}">
-            <button class="btn-icon" data-action="removeBrand" data-category="${catKey}" data-index="${i}" aria-label="Remove brand">${TRASH_ICON}</button>
-          </div>
-        `).join('')}
-        <button class="btn btn-sm" data-action="addBrand" data-category="${catKey}">+ Add Brand</button>
+        ${cat.brands.map(item => renderItemRow(catKey, item, meta)).join('')}
+        ${cat.brands.length === 0 ? `<p class="empty-hint">No ${(CATEGORY_NAMES[catKey] || catKey).toLowerCase()} stored yet.</p>` : ''}
+        <button class="btn btn-sm add-row" data-action="addBrand" data-category="${catKey}">+ Add item</button>
       </div>
 
-      ${isAdvanced ? `
-        <div class="preferences-section">
-          <h4>Preferences</h4>
-          <div class="form-group">
-            <label>Preferred Textures</label>
-            <input type="text" placeholder="cotton, linen, denim..." value="${cat.preferences.textures.join(', ')}" data-pref-field="textures" data-category="${catKey}">
-          </div>
-          <div class="form-group">
-            <label>Preferred Styles</label>
-            <input type="text" placeholder="slim fit, crew neck..." value="${cat.preferences.styles.join(', ')}" data-pref-field="styles" data-category="${catKey}">
-          </div>
-          <div class="form-group">
-            <label>Avoid List</label>
-            <input type="text" placeholder="Brands or styles to avoid" value="${cat.preferences.avoidList.join(', ')}" data-pref-field="avoidList" data-category="${catKey}">
-          </div>
-        </div>
-      ` : ''}
+      ${isAdvanced ? renderPreferences(catKey, cat) : ''}
     </div>
   `;
+}
 
-  return html;
+/** One stored item: brand, the size *and its system*, how it fits, notes. */
+function renderItemRow(catKey, item, meta) {
+  const sysOptions = Object.entries(SIZE_SYSTEMS)
+    .map(([key, sys]) => `<option value="${key}"${item.sizeSystem === key ? ' selected' : ''}>${sys.label}</option>`)
+    .join('');
+
+  return `
+    <div class="item-row${item.favorite ? ' is-fav' : ''}" data-item-id="${item.id}" data-category="${catKey}">
+      <div class="item-row-main">
+        <input type="text" class="item-name" placeholder="${escHtml(meta.placeholder || 'Brand')}"
+               value="${escHtml(item.name)}" data-item-field="name"
+               data-category="${catKey}" data-id="${item.id}" aria-label="Brand or product">
+        <button type="button" class="fav-btn" data-action="toggleFavorite"
+                data-category="${catKey}" data-id="${item.id}"
+                aria-pressed="${item.favorite}" aria-label="Mark as favourite">${STAR_ICON}</button>
+        <button class="btn-icon" data-action="removeBrand" data-category="${catKey}"
+                data-id="${item.id}" aria-label="Remove item">${TRASH_ICON}</button>
+      </div>
+
+      <div class="item-row-detail">
+        <div class="field-pair">
+          <input type="text" class="item-size" placeholder="Size" value="${escHtml(item.size)}"
+                 data-item-field="size" data-category="${catKey}" data-id="${item.id}"
+                 aria-label="Size" ${item.sizeSystem === 'one' ? 'disabled' : ''}>
+          <select class="item-system" data-item-field="sizeSystem" data-category="${catKey}"
+                  data-id="${item.id}" aria-label="Size system">${sysOptions}</select>
+        </div>
+
+        <div class="fit-group" role="radiogroup" aria-label="How it fits">
+          ${FIT_OPTIONS.map(f => `
+            <button type="button" class="fit-chip${item.fit === f.value ? ' selected' : ''}"
+                    data-action="setFit" data-fit="${f.value}" data-category="${catKey}"
+                    data-id="${item.id}" role="radio" aria-checked="${item.fit === f.value}">${f.label}</button>
+          `).join('')}
+        </div>
+      </div>
+
+      <input type="text" class="item-notes" placeholder="What the size doesn’t tell you — sleeves short, runs big…"
+             value="${escHtml(item.notes)}" data-item-field="notes"
+             data-category="${catKey}" data-id="${item.id}" aria-label="Notes">
+    </div>
+  `;
+}
+
+function renderPreferences(catKey, cat) {
+  const rows = [
+    { key: 'textures', label: 'Preferred textures', placeholder: 'cotton, linen, denim…' },
+    { key: 'styles', label: 'Preferred styles', placeholder: 'slim fit, crew neck…' },
+    { key: 'colors', label: 'Preferred colours', placeholder: 'navy, olive, off-white…' },
+    { key: 'avoidList', label: 'Avoid', placeholder: 'polyester, cropped…' },
+  ];
+  return `
+    <div class="preferences-section">
+      <h4>Preferences</h4>
+      ${rows.map(r => `
+        <div class="form-group">
+          <label>${r.label}</label>
+          <input type="text" placeholder="${r.placeholder}"
+                 value="${escHtml(cat.preferences[r.key].join(', '))}"
+                 data-pref-field="${r.key}" data-category="${catKey}">
+        </div>
+      `).join('')}
+      <p class="field-note">Comma separated.</p>
+    </div>
+  `;
 }
 
 function renderSelectWithCustom(fieldId, options, currentValue, dataAttr) {
@@ -337,75 +478,137 @@ function renderSelectWithCustom(fieldId, options, currentValue, dataAttr) {
   return `
     <div class="select-with-custom">
       <select data-select-for="${fieldId}" ${dataAttr}>
-        <option value="">Select...</option>
+        <option value="">Select…</option>
         ${options.map(o => `<option value="${escHtml(o)}" ${currentValue && o.toLowerCase() === currentValue.toLowerCase() ? 'selected' : ''}>${escHtml(o)}</option>`).join('')}
-        <option value="__custom" ${isCustom ? 'selected' : ''}>Other...</option>
+        <option value="__custom" ${isCustom ? 'selected' : ''}>Other…</option>
       </select>
-      <input type="text" class="custom-input${isCustom ? ' visible' : ''}" placeholder="Type your own..." value="${isCustom ? escHtml(currentValue) : ''}" data-custom-for="${fieldId}" ${dataAttr}>
+      <input type="text" class="custom-input${isCustom ? ' visible' : ''}" placeholder="Type your own…" value="${isCustom ? escHtml(currentValue) : ''}" data-custom-for="${fieldId}" ${dataAttr}>
     </div>
   `;
+}
+
+export function refreshHair() {
+  const node = document.querySelector('.section[data-category="hair"]');
+  if (node) node.outerHTML = renderHairSection();
 }
 
 function renderHairSection() {
   const hair = state.profile.categories.hair;
   return `
-    <div class="section">
+    <div class="section" data-category="hair">
       <h3>Hair</h3>
       <div class="form-group">
         <label>Type</label>
         ${renderSelectWithCustom('hairType', FIELD_OPTIONS.hairType, hair.type, 'data-hair-field="type"')}
       </div>
       <div class="form-group">
-        <label>Cut Instructions</label>
-        <textarea placeholder="How you like your hair cut" data-hair-field="cutInstructions">${escHtml(hair.cutInstructions)}</textarea>
+        <label>Cut instructions</label>
+        <textarea placeholder="Clipper number, how much off the top, how you part it…" data-hair-field="cutInstructions">${escHtml(hair.cutInstructions)}</textarea>
       </div>
       <div class="form-group">
-        <label>Special Notes</label>
-        <textarea placeholder="Double crown, sensitive scalp..." data-hair-field="specialNotes">${escHtml(hair.specialNotes)}</textarea>
+        <label>Special notes</label>
+        <textarea placeholder="Double crown, cowlick, sensitive scalp…" data-hair-field="specialNotes">${escHtml(hair.specialNotes)}</textarea>
       </div>
       <div class="products-list">
         <h4>Products</h4>
-        ${hair.products.map((p, i) => `
-          <div class="product-item">
-            <input type="text" placeholder="Product name" value="${escHtml(p.name)}" data-hair-product="name" data-index="${i}">
-            <input type="text" placeholder="Notes" value="${escHtml(p.notes)}" data-hair-product="notes" data-index="${i}">
-            <button class="btn-icon" data-action="removeHairProduct" data-index="${i}" aria-label="Remove product">${TRASH_ICON}</button>
+        ${hair.products.map(p => `
+          <div class="product-item" data-item-id="${p.id}">
+            <input type="text" placeholder="Product" value="${escHtml(p.name)}" data-hair-product="name" data-id="${p.id}" aria-label="Product name">
+            <input type="text" placeholder="Notes" value="${escHtml(p.notes)}" data-hair-product="notes" data-id="${p.id}" aria-label="Product notes">
+            <button class="btn-icon" data-action="removeHairProduct" data-id="${p.id}" aria-label="Remove product">${TRASH_ICON}</button>
           </div>
         `).join('')}
-        <button class="btn btn-sm" data-action="addHairProduct">+ Add Product</button>
+        <button class="btn btn-sm add-row" data-action="addHairProduct">+ Add product</button>
       </div>
     </div>
   `;
+}
+
+export function refreshSets() {
+  const node = document.querySelector('.section[data-category="outfits"]');
+  if (node) node.outerHTML = renderSetsSection();
 }
 
 function renderSetsSection() {
   return `
-    <div class="section">
+    <div class="section" data-category="outfits">
       <h3>Complete Sets</h3>
+      <p class="field-note">An outfit that already works, so you can repeat it without rethinking it.</p>
       <div class="sets-list">
-        ${state.profile.sets.map((set, i) => `
-          <div class="set-item" data-set-index="${i}">
-            <input type="text" placeholder="Set name" value="${escHtml(set.name)}" data-set-field="name" data-index="${i}" style="flex:1">
-            <button class="btn-icon" data-action="removeSet" data-index="${i}" aria-label="Remove set">${TRASH_ICON}</button>
-            <div class="set-items" style="width:100%">
-              ${set.items.map((item, j) => `
-                <div class="set-subitem">
-                  <input type="text" placeholder="Category" value="${escHtml(item.category)}" data-set-item="category" data-set-index="${i}" data-item-index="${j}">
-                  <input type="text" placeholder="Brand" value="${escHtml(item.brand)}" data-set-item="brand" data-set-index="${i}" data-item-index="${j}">
-                  <input type="text" placeholder="Details" value="${escHtml(item.details)}" data-set-item="details" data-set-index="${i}" data-item-index="${j}">
-                  <button class="btn-icon" data-action="removeSetItem" data-set-index="${i}" data-item-index="${j}" aria-label="Remove item">${TRASH_ICON}</button>
+        ${state.profile.sets.map(set => `
+          <div class="set-item" data-item-id="${set.id}">
+            <div class="set-item-head">
+              <input type="text" placeholder="Set name — “interview”, “wedding”" value="${escHtml(set.name)}"
+                     data-set-field="name" data-id="${set.id}" aria-label="Set name">
+              <button class="btn-icon" data-action="removeSet" data-id="${set.id}" aria-label="Remove set">${TRASH_ICON}</button>
+            </div>
+            <div class="set-items">
+              ${set.items.map(item => `
+                <div class="set-subitem" data-item-id="${item.id}">
+                  <input type="text" placeholder="Piece" value="${escHtml(item.category)}" data-set-item="category" data-set-id="${set.id}" data-id="${item.id}" aria-label="Piece">
+                  <input type="text" placeholder="Brand" value="${escHtml(item.brand)}" data-set-item="brand" data-set-id="${set.id}" data-id="${item.id}" aria-label="Brand">
+                  <input type="text" placeholder="Details" value="${escHtml(item.details)}" data-set-item="details" data-set-id="${set.id}" data-id="${item.id}" aria-label="Details">
+                  <button class="btn-icon" data-action="removeSetItem" data-set-id="${set.id}" data-id="${item.id}" aria-label="Remove piece">${TRASH_ICON}</button>
                 </div>
               `).join('')}
-              <button class="btn btn-xs" data-action="addSetItem" data-set-index="${i}">+ Add Item</button>
+              <button class="btn btn-xs add-row" data-action="addSetItem" data-set-id="${set.id}">+ Add piece</button>
             </div>
           </div>
         `).join('')}
-        <button class="btn btn-sm" data-action="addSet">+ Add Set</button>
+        <button class="btn btn-sm add-row" data-action="addSet">+ Add set</button>
       </div>
     </div>
   `;
 }
 
-function getNestedValue(obj, path) {
-  return path.split('.').reduce((current, key) => current?.[key], obj);
+/** Keep the map, the zone list and the panel agreeing on the active zone. */
+export function syncZoneActive(zoneId) {
+  document.querySelectorAll('.hit-zone').forEach(el => {
+    const on = el.dataset.zone === zoneId;
+    el.classList.toggle('is-active', on);
+    el.setAttribute('aria-pressed', String(on));
+  });
+  document.querySelectorAll('.zone-card').forEach(el => {
+    const on = el.dataset.zone === zoneId;
+    el.classList.toggle('active', on);
+    el.setAttribute('aria-pressed', String(on));
+  });
+}
+
+/** Update the zone counters and completeness without a full re-render. */
+export function refreshZoneCounts() {
+  for (const zone of BODY_ZONES) {
+    const card = document.querySelector(`.zone-card[data-zone="${zone.id}"]`);
+    if (!card) continue;
+    const count = getZoneItemCount(zone);
+    card.classList.toggle('is-empty', count === 0);
+    const badge = card.querySelector('.zone-card-count');
+    if (badge) badge.textContent = count > 0 ? String(count) : '+';
+  }
+  const meta = document.querySelector('.profile-meta .completeness');
+  if (meta) meta.outerHTML = renderCompleteness();
+}
+
+/** Reflect saved/unsaved without redrawing the form. */
+export function refreshSaveState() {
+  const el = document.getElementById('saveState');
+  if (!el) return;
+  el.dataset.state = state.dirty ? 'unsaved' : 'saved';
+  el.textContent = state.dirty ? 'Unsaved changes' : 'All changes stored';
+}
+
+/** Redraw only the search area, leaving the search input's focus intact. */
+export function refreshSearch() {
+  const results = document.getElementById('searchResults');
+  const section = document.querySelector('.body-map-section');
+  if (results) results.innerHTML = state.query ? renderSearchResults() : '';
+  if (section) section.hidden = Boolean(state.query);
+
+  const bar = document.querySelector('.search-bar');
+  const clear = bar?.querySelector('.search-clear');
+  if (state.query && !clear && bar) {
+    bar.insertAdjacentHTML('beforeend', '<button class="search-clear" data-action="clearSearch" aria-label="Clear search">&times;</button>');
+  } else if (!state.query && clear) {
+    clear.remove();
+  }
 }

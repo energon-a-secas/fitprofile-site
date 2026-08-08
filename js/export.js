@@ -1,7 +1,7 @@
 // ── Export & Import ──────────────────────────────────────────
-import { state } from './state.js';
-import { getDefaultProfile } from './data.js';
-import { deepMerge, showToast } from './utils.js';
+import { state, markDirty } from './state.js';
+import { getDefaultProfile, normalizeProfile } from './data.js';
+import { showToast } from './utils.js';
 import { render } from './render.js';
 
 export function exportProfile() {
@@ -56,13 +56,16 @@ export function importProfile(file) {
       return;
     }
 
-    const defaults = getDefaultProfile();
-    if (data.name !== undefined) state.profile.name = data.name;
-    if (data.pronouns !== undefined) state.profile.pronouns = data.pronouns;
-    state.profile.measurements = deepMerge(defaults.measurements, data.measurements || {});
-    state.profile.categories = deepMerge(defaults.categories, data.categories || {});
-    state.profile.sets = Array.isArray(data.sets) ? data.sets : [];
+    state.profile = normalizeProfile({
+      name: data.name,
+      pronouns: data.pronouns,
+      photoUrl: state.profile.photoUrl,
+      measurements: data.measurements,
+      categories: data.categories,
+      sets: data.sets,
+    });
 
+    markDirty();
     render();
     showToast('Profile imported');
   };
@@ -85,19 +88,24 @@ function validateImport(data) {
   return { valid: true };
 }
 
+/** Drop rows the user added but never filled — a blank row carries no meaning. */
 function stripEmptyBrands(categories) {
   const cleaned = {};
   for (const [key, cat] of Object.entries(categories)) {
     if (cat.brands) {
       cleaned[key] = {
         ...cat,
-        brands: cat.brands.filter(b => b.name),
+        brands: cat.brands.filter(hasContent),
       };
     } else {
       cleaned[key] = cat;
     }
   }
   return cleaned;
+}
+
+function hasContent(item) {
+  return Boolean(item.name || item.size || item.fit || item.notes || item.favorite);
 }
 
 function download(data, filename) {
