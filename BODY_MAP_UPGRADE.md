@@ -1,124 +1,120 @@
-# Body Map Upgrade — Anatomical SVG
+# Body Map — Design Record
 
-## Changes Made
+Why the map is built the way it is, and what breaks if you change it back. Code lives in `js/bodymap.js` and the `Body map` block of `css/style.css`.
 
-Upgraded the FitProfile body map from simple geometric shapes to a detailed anatomical human body using SVG paths.
+## The problem this replaced
 
-### Before
-- Simple circles and rectangles
-- 9 abstract zones with emoji labels
-- Basic hover effects
+The first map was **eight separately-positioned SVGs**, absolutely placed inside a `.human-body` container and layered with z-index. Each one was a rectangular element sitting over the figure, so hovering anywhere inside a rectangle's bounds lit that zone up. The shape you got never matched the body part you were pointing at — the reported "weird hover shape".
 
-### After
-- Detailed anatomical SVG body (7 body parts + 2 floating zones)
-- Realistic human silhouette with proper proportions
-- Body parts: head, shoulders, arms, chest, stomach, legs, hands
-- Floating zones for accessories and complete sets
+Two things made it unfixable by tweaking:
 
-## New Body Zone Mapping (Updated 2026-04-24)
+- The legs artwork is **one path**, shared by `waist-legs` and `feet`. One element cannot carry two tints.
+- Arms and hands are **two disjoint shapes each**. Neither zone can be expressed as a single box.
 
-Reorganized to match measurement and clothing groupings:
+Mobile made it worse: the whole container was scaled `0.8`, which scaled the mismatch along with the art.
 
-| Zone ID | SVG Parts | Fashion Categories | Measurements |
-|---------|-----------|-------------------|--------------|
-| `head` | head | hair, hats | - |
-| `torso` | shoulder + cheast + stomach | shirts, jackets, hoodies, belts, underwear | shoulders (cm), chest (cm), waist (cm) |
-| `waist-legs` | legs (upper to mid) | pants, jeans, socks | hips (cm), inseam (cm) |
-| `feet` | legs (lower) | shoes | foot length (cm) |
+## The architecture
+
+One SVG, `viewBox="-8 -14 223 516"`, two sibling layers.
+
+```
+<svg class="body-map">
+  <defs>            shared legs path + two clipPaths (userSpaceOnUse)
+  <g class="body-art" aria-hidden="true">     decoration, pointer-events: none
+  <g class="body-hit">                        every hit test lives here
+```
+
+**`.body-art`** holds the anatomical paths (`head`, `shoulder`, `cheast`, `stomach`, `arm`, `hands`) plus the legs path drawn twice. Each part gets a `zone-*` class so it can be tinted by the zone it belongs to. It is `aria-hidden` and never receives a pointer event.
+
+**`.body-hit`** holds one `<g class="hit-zone" data-zone role="button" tabindex="0" aria-pressed>` per mapped zone, containing rounded rects (or one hand-authored torso path). Regions are sized so every one clears the 44px touch-target guideline at the map's rendered size. `arm` and `hands` are two rects each.
+
+### Hit regions are invisible
+
+This is the fix, and it is deliberate:
+
+```css
+.hit-zone { fill: transparent; stroke: transparent; }
+.hit-zone:focus-visible { stroke: #fff; stroke-dasharray: 5 4; }
+```
+
+The region is a fat rounded box because that is what makes pointing reliable. Drawing it puts a shape on screen that does not match the body underneath — which *is* the bug. The feedback is the art beneath lighting up instead, selected from the parent:
+
+```css
+.body-map:has(.hit-zone.is-active) .art-part { opacity: 0.28; }
+.body-map:has(.hit-zone[data-zone="head"].is-active) .art-part.zone-head,
+/* …five more… */ { opacity: 1; filter: drop-shadow(0 0 10px var(--glow)); }
+```
+
+Keyboard focus is the one exception. A dashed outline appears on `:focus-visible` because a keyboard user needs to know where they are, and by then the box is the honest answer to "what will Enter activate".
+
+## Three traps
+
+**1. `drop-shadow` inside `clip-path` is cut at the clip edge.**
+
+The legs path is drawn twice, clipped above and below the ankle line, so `waist-legs` and `feet` can be tinted separately. If the styled element carries the clip, its glow is clipped too and reads as a hard rectangle. The styled element must **wrap** the clip:
+
+```html
+<g class="art-part zone-feet">        <!-- styled: fill, glow -->
+  <g clip-path="url(#fp-clip-feet)">  <!-- clipped -->
+    <use href="#fp-legs"/>
+```
+
+`clipPathUnits="userSpaceOnUse"` matters — the clip paths are authored in the same user units as the art, not as 0–1 fractions.
+
+**2. `drop-shadow` needs an explicit colour.** `currentColor` resolves to inherited text colour and glows white. Each part sets its own `--glow`, which also lets all six lit rules share a single declaration block instead of repeating per zone.
+
+**3. Hover must be gated to pointing devices.**
+
+```css
+@media (hover: hover) { /* hover variants only */ }
+```
+
+On touch there is no un-hover, so an ungated rule leaves the last-tapped region lit in a state nobody chose. Gating the affordance is the fix; overriding it back inside `@media (hover: none)` loses the specificity fight.
+
+## Zone mapping
+
+Eight zones in `BODY_ZONES`; six drawn (`MAPPED_ZONES`).
+
+| Zone ID | Art parts | Categories | Measurements |
+|---|---|---|---|
+| `head` | head | hair, hats | — |
+| `torso` | shoulder + cheast + stomach | shirts, jackets, hoodies, belts, underwear | shoulders, chest, waist (cm) |
+| `waist-legs` | legs, clipped above the ankle | pants, jeans, socks | hips, inseam (cm) |
+| `feet` | legs, clipped below the ankle | shoes | foot length (cm) |
 | `arm` | arm | watches, bracelets | wrist (cm) |
-| `hands` | hands | rings, gloves | ring sizes (mm), palm width (cm) |
-| `accessories` | floating button | glasses, jewelry, perfume, skincare | - |
-| `sets` | floating button | complete outfits | - |
+| `hands` | hands | rings, gloves | ring finger, pinky (mm), palm width (cm) |
+| `accessories` | *not drawn* | glasses, jewelry, perfume, skincare | — |
+| `sets` | *not drawn* | outfits | — |
 
-### Rationale
-- **Torso**: Combined shoulders, pecs, abs, and upper waist for complete upper body (all measurements for shirts/jackets: shoulders, chest, waist)
-- **Waist & Legs**: Legs only for pants measurements (hips + inseam). Waist measurement belongs to torso since it's needed for shirts and belts
-- **Feet**: Independent from legs for dedicated shoe sizing
-- **Reduced total zones**: 9 → 8 zones for clearer organization
+`torso` owns the waist measurement — shirts, jackets and belts all need it. `waist-legs` carries hips and inseam for pants. `feet` is split from the legs so shoe sizing stands alone. `accessories` and `sets` have no anatomical home and live in the zone list only; giving them floating buttons beside the figure only added two more boxes that were not the body.
 
-### Visual Organization
-```
-Torso zone (pink outline):
-  ├─ Shoulders (broad)
-  ├─ Chest/Pecs (mid-upper body)
-  └─ Stomach/Abs (core, includes waist measurement point)
+## Responsive
 
-Waist-Legs zone (pink outline):
-  └─ Legs (thighs to ankles, for pants fit)
+No container scaling. The SVG scales as an SVG (`max-width` tuned at 380px), so hit regions stay aligned to the art at every width — the old `transform: scale(0.8)` scaled the mismatch too.
 
-Feet zone (pink outline):
-  └─ Lower legs/feet (for shoe sizing)
-```
+Under 700px the right-hand panel becomes a bottom sheet and the zone list becomes a horizontal scroll-snap chip strip placed **above** the figure (`order: -1`): on a phone the chips are the fast path, and a full-height figure would push every zone below the fold.
 
-## Updated Files
+## Verified
 
-### `js/data.js`
-- Updated `BODY_ZONES` array with `svgPart` property (now supports arrays for combined zones)
-- Reorganized zones: torso (shoulder + chest + stomach), waist-legs (stomach + legs), independent feet
-- Remapped measurement fields to match combined zones
-- Aligned categories with body parts (shirts/jackets to torso, pants to waist-legs, shoes to feet)
+Browser-measured at 1280×1000 and 390×844:
 
-### `js/render.js`
-- Replaced simple SVG shapes with anatomical body parts
-- Added 7 detailed SVG body components from reference, organized into groups
-- Created `<g>` groups for combined zones (torso, waist-legs) using `body-part-group` class
-- Added floating zone buttons for accessories and sets
-- Maintained hover states and click interactions for both individual and grouped parts
+- 15-point hit probe correct, including the **thigh gap** (belongs to `waist-legs`) and the empty corners beside the figure (must hit nothing).
+- Each of the six zones lights exactly its own art, silhouette-shaped, with no drawn box.
+- Enter on a focused region opens that zone; Escape closes.
+- Mobile: sheet spans the full width to the viewport floor, chip strip scrolls, zero horizontal overflow.
 
-### `js/events.js`
-- Enhanced zone detection for SVG `<path>` elements and `<g>` groups
-- Added support for clicks on body part paths, grouped body parts, and floating buttons
-- Detects parent `.body-part-group` for combined zone clicks
+## Regression checklist
 
-### `css/style.css`
-- Added `.human-body` container positioning (207px width, centered)
-- Added individual body part positioning (head, shoulder, arm, cheast, stomach, legs, hands, feet)
-- Added `.body-part-group` styles for combined zones (torso, waist-legs)
-- Added hover effects with opacity and glow (applies to entire group when hovering)
-- Added floating zone styles with slide-in hover animation
-- Made responsive for mobile (scale 0.8)
+- [ ] Hover each zone — the glow traces the silhouette, no rectangle anywhere, especially on legs and feet.
+- [ ] Hover the thigh gap and the empty corners — gap lights the legs, corners light nothing.
+- [ ] Tab through the map — dashed outline follows focus, Enter opens the right panel.
+- [ ] Tap a zone on a touch device, then tap elsewhere — nothing stays lit.
+- [ ] Resize through 700px — chip strip and sheet swap in cleanly, no horizontal scrollbar.
 
-## Visual Features
+## Not done
 
-**Body Part Hover:**
-- Color: `#ec4899` → `#f472b6` (pink-500 to pink-400)
-- Opacity: 0.7 → 1.0
-- Glow effect: 8px drop shadow with pink tint
+- Gender / body-shape variants (would need a second art set and a second hit-region table).
+- Highlighting related parts when hovering a category name in the panel.
+- Measurement labels drawn on the body.
 
-**Floating Zones:**
-- Positioned to the right of the body
-- Icon + label layout
-- Slide animation on hover (translateX -4px)
-- Pink border highlight on hover
-
-## Technical Details
-
-**SVG Source:** Adapted from `human-body-svg-with-js` reference folder
-
-**Positioning System:**
-- All body parts positioned absolutely relative to `.human-body` container
-- Left positioning: `left: 50%` with negative `margin-left` for centering
-- Top offsets calculated for natural body proportions
-- Z-index layering to handle overlapping parts (head: 10, chest: 9, legs: 6)
-
-**Mobile Responsive:**
-- Body scaled to 0.8x on screens ≤768px
-- Transform origin: top center to maintain header alignment
-- Floating zones scaled proportionally
-
-## Testing Checklist
-
-- [x] All 7 body parts are clickable
-- [x] Floating zones (accessories, sets) are clickable
-- [x] Zone panels open with correct data
-- [x] Hover effects work on all parts
-- [x] Mobile scaling preserves proportions
-- [x] No z-index conflicts between parts
-
-## Future Enhancements
-
-- [ ] Add gender toggle (male/female/neutral body silhouettes)
-- [ ] Add zoom controls for detailed part inspection
-- [ ] Highlight related parts when hovering a category (e.g., hover "chest" highlights cheast + shoulder)
-- [ ] Animated transitions when switching between zones
-- [ ] Show measurements directly on body parts as labels
+`human-body-svg-with-js/` is the reference the art was adapted from. It is not imported by anything at runtime.
