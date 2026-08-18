@@ -1,3 +1,8 @@
+// Raw localStorage throws in private browsing, where the object exists but
+// every access raises. These wrappers return a fallback instead. Storage
+// keys and formats are unchanged, so existing saved data still loads.
+import { safeGet, safeRemove, safeSet } from './neorgon-persist.js';
+
 // ── State management ─────────────────────────────────────────
 import { ConvexHttpClient } from "https://esm.sh/convex@1.16.2/browser";
 import { getDefaultProfile, normalizeProfile } from './data.js';
@@ -76,15 +81,15 @@ export function loadDraft(shareId = null) {
 }
 
 export function clearDraft(shareId = null) {
-  localStorage.removeItem(draftKey(shareId));
+  safeRemove(draftKey(shareId));
 }
 
 /** A draft started before the first save moves under the new shareId. */
 function migrateDraft(newShareId) {
-  const anon = localStorage.getItem(DRAFT_KEY);
+  const anon = safeGet(DRAFT_KEY);
   if (anon) {
-    localStorage.setItem(draftKey(newShareId), anon);
-    localStorage.removeItem(DRAFT_KEY);
+    safeSet(draftKey(newShareId), anon);
+    safeRemove(DRAFT_KEY);
   }
 }
 
@@ -192,12 +197,12 @@ export function loadAuth() {
 
 export function saveAuth(user) {
   state.user = user;
-  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+  safeSet(AUTH_KEY, JSON.stringify(user));
 }
 
 export function clearAuth() {
   state.user = null;
-  localStorage.removeItem(AUTH_KEY);
+  safeRemove(AUTH_KEY);
 }
 
 loadAuth();
