@@ -4,7 +4,7 @@ PORT = 8829
 
 serve:
 	@echo "Starting server on http://localhost:$(PORT)"
-	@python3 -m http.server $(PORT)
+	@if [ -f ../../scripts/serve.py ]; then python3 ../../scripts/serve.py $(PORT); else python3 -m http.server $(PORT); fi
 
 kill:
 	@echo "Killing server on port $(PORT)"
