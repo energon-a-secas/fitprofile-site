@@ -10,21 +10,21 @@ export const BODY_ZONES = [
   {
     id: 'torso',
     name: 'Torso',
-    hint: 'Shirts, jackets, hoodies — the sizes people ask for most',
+    hint: 'Shirts, jackets, hoodies: the sizes people ask for most',
     categories: ['shirts', 'jackets', 'hoodies', 'belts', 'underwear'],
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.38 3.46 16 2 12 5 8 2 3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>',
   },
   {
     id: 'waist-legs',
     name: 'Waist & Legs',
-    hint: 'Pants and jeans — waist × length varies wildly by brand',
+    hint: 'Pants and jeans: waist × length varies wildly by brand',
     categories: ['pants', 'jeans', 'socks'],
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12l-1 9-2.5 11h-3L10 11 8 22H5L6 2z"/></svg>',
   },
   {
     id: 'feet',
     name: 'Feet',
-    hint: 'Shoe sizes per brand — record every system you know',
+    hint: 'Shoe sizes per brand: record every system you know',
     categories: ['shoes'],
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18h5l2-4 3 2 4-6 4 8v2H3z"/></svg>',
   },
@@ -38,7 +38,7 @@ export const BODY_ZONES = [
   {
     id: 'hands',
     name: 'Hands & Rings',
-    hint: 'Ring sizes in mm — the detail nobody remembers',
+    hint: 'Ring sizes in mm: the detail nobody remembers',
     categories: ['rings', 'gloves'],
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6a2 2 0 0 0-4 0v3M14 10V4a2 2 0 0 0-4 0v7m0 0V4a2 2 0 0 0-4 0v8l-1.5-1.5a2 2 0 0 0-2.83 2.83L8 19.5A6 6 0 0 0 13.73 22H15a6 6 0 0 0 6-6v-5a2 2 0 0 0-4 0v1"/></svg>',
   },

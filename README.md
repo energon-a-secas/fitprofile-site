@@ -30,7 +30,7 @@ Track measurements, brands, and style preferences
 
 ## Overview
 
-Store your measurements, brand sizes, and style notes in one shareable profile. Perfect for gift-giving occasions — never make someone guess your fit details again. Features an interactive body map where you click zones to manage measurements and preferences.
+Store your measurements, brand sizes, and style notes in one shareable profile. Perfect for gift-giving occasions, never make someone guess your fit details again. Features an interactive body map where you click zones to manage measurements and preferences.
 
 **Live:** fitprofile.neorgon.com
 

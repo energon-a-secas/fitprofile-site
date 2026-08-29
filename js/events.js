@@ -408,7 +408,7 @@ async function handleSaveProfile() {
     if (shareBtn) shareBtn.disabled = false;
   } catch (err) {
     console.error(err);
-    showToast('Could not reach the server — changes are stored on this device');
+    showToast('Could not reach the server: changes are stored on this device');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Save & get link'; }
   }
@@ -552,7 +552,7 @@ async function handleRegister() {
   try {
     const result = await convex.mutation(api.auth.register, { username, password });
     saveAuth(result);
-    showToast(`Account created — welcome, ${username}`);
+    showToast(`Account created: welcome, ${username}`);
     state.authPanelOpen = false;
     $('authPanel').classList.remove('open');
     render();

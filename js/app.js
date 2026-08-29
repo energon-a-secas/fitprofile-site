@@ -28,7 +28,7 @@ async function init() {
       if (loadDraft(shareId)) {
         state.shareId = shareId;
         state.isOwner = true;
-        showToast('Offline — showing the copy stored on this device');
+        showToast('Offline: showing the copy stored on this device');
       } else {
         showToast('Could not load that profile');
       }

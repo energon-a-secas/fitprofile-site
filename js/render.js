@@ -270,7 +270,7 @@ function renderCategorySummary() {
           ${filled.map(b => `
             <li${b.favorite ? ' class="is-fav"' : ''}>
               ${b.favorite ? '<span class="fav-dot" aria-label="favorite">★</span> ' : ''}
-              <strong>${escHtml(b.name)}</strong>${formatSize(b) ? ` — ${escHtml(formatSize(b))}` : ''}${b.fit ? ` <em>(${escHtml(b.fit)})</em>` : ''}${b.notes ? ` · ${escHtml(b.notes)}` : ''}
+              <strong>${escHtml(b.name)}</strong>${formatSize(b) ? `: ${escHtml(formatSize(b))}` : ''}${b.fit ? ` <em>(${escHtml(b.fit)})</em>` : ''}${b.notes ? ` · ${escHtml(b.notes)}` : ''}
             </li>
           `).join('')}
         </ul>
@@ -352,7 +352,7 @@ function renderPanelBody(zone) {
           <label for="m-${field.key}">${field.label}</label>
           <div class="input-unit">
             <input type="number" inputmode="decimal" step="0.1" min="0" id="m-${field.key}"
-                   data-field="${field.key}" value="${value ?? ''}" placeholder="—">
+                   data-field="${field.key}" value="${value ?? ''}" placeholder="-">
             <span class="unit">${field.unit}</span>
           </div>
         </div>
@@ -443,7 +443,7 @@ function renderItemRow(catKey, item, meta) {
         </div>
       </div>
 
-      <input type="text" class="item-notes" placeholder="What the size doesn’t tell you — sleeves short, runs big…"
+      <input type="text" class="item-notes" placeholder="What the size doesn’t tell you, sleeves short, runs big…"
              value="${escHtml(item.notes)}" data-item-field="notes"
              data-category="${catKey}" data-id="${item.id}" aria-label="Notes">
     </div>
@@ -538,7 +538,7 @@ function renderSetsSection() {
         ${state.profile.sets.map(set => `
           <div class="set-item" data-item-id="${set.id}">
             <div class="set-item-head">
-              <input type="text" placeholder="Set name — “interview”, “wedding”" value="${escHtml(set.name)}"
+              <input type="text" placeholder="Set name: “interview”, “wedding”" value="${escHtml(set.name)}"
                      data-set-field="name" data-id="${set.id}" aria-label="Set name">
               <button class="btn-icon" data-action="removeSet" data-id="${set.id}" aria-label="Remove set">${TRASH_ICON}</button>
             </div>

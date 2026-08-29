@@ -1,10 +1,10 @@
-# Body Map — Design Record
+# Body Map: Design Record
 
 Why the map is built the way it is, and what breaks if you change it back. Code lives in `js/bodymap.js` and the `Body map` block of `css/style.css`.
 
 ## The problem this replaced
 
-The first map was **eight separately-positioned SVGs**, absolutely placed inside a `.human-body` container and layered with z-index. Each one was a rectangular element sitting over the figure, so hovering anywhere inside a rectangle's bounds lit that zone up. The shape you got never matched the body part you were pointing at — the reported "weird hover shape".
+The first map was **eight separately-positioned SVGs**, absolutely placed inside a `.human-body` container and layered with z-index. Each one was a rectangular element sitting over the figure, so hovering anywhere inside a rectangle's bounds lit that zone up. The shape you got never matched the body part you were pointing at. The reported "weird hover shape".
 
 Two things made it unfixable by tweaking:
 
@@ -37,7 +37,7 @@ This is the fix, and it is deliberate:
 .hit-zone:focus-visible { stroke: #fff; stroke-dasharray: 5 4; }
 ```
 
-The region is a fat rounded box because that is what makes pointing reliable. Drawing it puts a shape on screen that does not match the body underneath — which *is* the bug. The feedback is the art beneath lighting up instead, selected from the parent:
+The region is a fat rounded box because that is what makes pointing reliable. Drawing it puts a shape on screen that does not match the body underneath, which *is* the bug. The feedback is the art beneath lighting up instead, selected from the parent:
 
 ```css
 .body-map:has(.hit-zone.is-active) .art-part { opacity: 0.28; }
@@ -59,7 +59,7 @@ The legs path is drawn twice, clipped above and below the ankle line, so `waist-
     <use href="#fp-legs"/>
 ```
 
-`clipPathUnits="userSpaceOnUse"` matters — the clip paths are authored in the same user units as the art, not as 0–1 fractions.
+`clipPathUnits="userSpaceOnUse"` matters: the clip paths are authored in the same user units as the art, not as 0–1 fractions.
 
 **2. `drop-shadow` needs an explicit colour.** `currentColor` resolves to inherited text colour and glows white. Each part sets its own `--glow`, which also lets all six lit rules share a single declaration block instead of repeating per zone.
 
@@ -77,20 +77,20 @@ Eight zones in `BODY_ZONES`; six drawn (`MAPPED_ZONES`).
 
 | Zone ID | Art parts | Categories | Measurements |
 |---|---|---|---|
-| `head` | head | hair, hats | — |
+| `head` | head | hair, hats | none |
 | `torso` | shoulder + cheast + stomach | shirts, jackets, hoodies, belts, underwear | shoulders, chest, waist (cm) |
 | `waist-legs` | legs, clipped above the ankle | pants, jeans, socks | hips, inseam (cm) |
 | `feet` | legs, clipped below the ankle | shoes | foot length (cm) |
 | `arm` | arm | watches, bracelets | wrist (cm) |
 | `hands` | hands | rings, gloves | ring finger, pinky (mm), palm width (cm) |
-| `accessories` | *not drawn* | glasses, jewelry, perfume, skincare | — |
-| `sets` | *not drawn* | outfits | — |
+| `accessories` | *not drawn* | glasses, jewelry, perfume, skincare | none |
+| `sets` | *not drawn* | outfits | none |
 
-`torso` owns the waist measurement — shirts, jackets and belts all need it. `waist-legs` carries hips and inseam for pants. `feet` is split from the legs so shoe sizing stands alone. `accessories` and `sets` have no anatomical home and live in the zone list only; giving them floating buttons beside the figure only added two more boxes that were not the body.
+`torso` owns the waist measurement: shirts, jackets and belts all need it. `waist-legs` carries hips and inseam for pants. `feet` is split from the legs so shoe sizing stands alone. `accessories` and `sets` have no anatomical home and live in the zone list only; giving them floating buttons beside the figure only added two more boxes that were not the body.
 
 ## Responsive
 
-No container scaling. The SVG scales as an SVG (`max-width` tuned at 380px), so hit regions stay aligned to the art at every width — the old `transform: scale(0.8)` scaled the mismatch too.
+No container scaling. The SVG scales as an SVG (`max-width` tuned at 380px), so hit regions stay aligned to the art at every width. The old `transform: scale(0.8)` scaled the mismatch too.
 
 Under 700px the right-hand panel becomes a bottom sheet and the zone list becomes a horizontal scroll-snap chip strip placed **above** the figure (`order: -1`): on a phone the chips are the fast path, and a full-height figure would push every zone below the fold.
 
@@ -105,11 +105,11 @@ Browser-measured at 1280×1000 and 390×844:
 
 ## Regression checklist
 
-- [ ] Hover each zone — the glow traces the silhouette, no rectangle anywhere, especially on legs and feet.
-- [ ] Hover the thigh gap and the empty corners — gap lights the legs, corners light nothing.
-- [ ] Tab through the map — dashed outline follows focus, Enter opens the right panel.
-- [ ] Tap a zone on a touch device, then tap elsewhere — nothing stays lit.
-- [ ] Resize through 700px — chip strip and sheet swap in cleanly, no horizontal scrollbar.
+- [ ] Hover each zone: the glow traces the silhouette, no rectangle anywhere, especially on legs and feet.
+- [ ] Hover the thigh gap and the empty corners: gap lights the legs, corners light nothing.
+- [ ] Tab through the map: dashed outline follows focus, Enter opens the right panel.
+- [ ] Tap a zone on a touch device, then tap elsewhere: nothing stays lit.
+- [ ] Resize through 700px: chip strip and sheet swap in cleanly, no horizontal scrollbar.
 
 ## Not done
 

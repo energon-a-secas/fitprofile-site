@@ -76,7 +76,7 @@ export function renderBodyMap(activeZone) {
 
   return `
     <svg class="body-map" viewBox="-8 -14 223 516" role="group"
-         aria-label="Body map — choose a zone to edit"
+         aria-label="Body map: choose a zone to edit"
          xmlns="http://www.w3.org/2000/svg">
       <defs>
         <path id="fp-legs" d="${LEGS.d}"/>
