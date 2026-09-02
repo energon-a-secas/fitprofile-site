@@ -284,9 +284,9 @@ function renderCategorySummary() {
       <div class="category-section">
         <h4>Hair</h4>
         <ul>
-          ${hair.type ? `<li><strong>Type</strong> — ${escHtml(hair.type)}</li>` : ''}
-          ${hair.cutInstructions ? `<li><strong>Cut</strong> — ${escHtml(hair.cutInstructions)}</li>` : ''}
-          ${hair.specialNotes ? `<li><strong>Notes</strong> — ${escHtml(hair.specialNotes)}</li>` : ''}
+          ${hair.type ? `<li><strong>Type</strong>: ${escHtml(hair.type)}</li>` : ''}
+          ${hair.cutInstructions ? `<li><strong>Cut</strong>: ${escHtml(hair.cutInstructions)}</li>` : ''}
+          ${hair.specialNotes ? `<li><strong>Notes</strong>: ${escHtml(hair.specialNotes)}</li>` : ''}
           ${hair.products.filter(p => p.name).map(p => `<li>${escHtml(p.name)}${p.notes ? ` · ${escHtml(p.notes)}` : ''}</li>`).join('')}
         </ul>
       </div>
