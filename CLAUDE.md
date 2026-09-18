@@ -45,6 +45,14 @@ Each profile gets a unique `shareId` (8-char nanoid) generated client-side when 
 
 The URL parser in `app.js` accepts `[a-zA-Z0-9_-]+`: nanoid's alphabet includes `-` and `_`, so a narrower pattern silently fails on roughly a quarter of generated ids.
 
+**`/p/` is not a real directory, and the route only works because `404.html` rescues it.** There is no `p/` in this repo, so GitHub Pages answers `/p/<shareId>` with `404.html` and HTTP **404**. An inline script in that page's head matches `^/p/([A-Za-z0-9_-]+)/?$` and `location.replace`s to `/?p=<id>`, which the root page answers 200; `shareIdFromLocation()` in `app.js` accepts either form and `replaceState`s the canonical `/p/<id>` back into the address bar, so the address bar and the Copy button always agree. Every other path, including a bare `/p/`, stays the plain not-found page.
+
+Three consequences worth knowing before changing any of it:
+
+- **Every asset in `index.html` is root-absolute** (`/css/style.css`, `/js/app.js`, and the title link is `href="/"`). A relative path resolves against `/p/` on a share link and 404s. This is the one site in the fleet with that requirement.
+- **A share link still answers HTTP 404 to a crawler or a link preview**, and needs JavaScript plus one redirect hop. Serving them 200 means either handing out `/?p=<id>` directly or adding a real `p/index.html` shell like Vitrina's `/u/?handle`. Open decision, queue `#75` step 4.
+- **`scripts/serve.py` has no `404.html` fallback**, so `/p/<id>` cannot be tested locally at all. Test the route with `/?p=<id>`; the redirect itself is only observable on the published site.
+
 ### Body map: two layers, one SVG
 
 Built entirely in `js/bodymap.js`. See `BODY_MAP_UPGRADE.md` for the full rationale and the traps that shaped it.
@@ -130,7 +138,13 @@ A stored item (`createItem`): `{ id, name, size, sizeSystem, fit, favorite, note
 4. Create a profile → measurements and brands
 5. Click "Save & get link" → generates shareId, URL updates to `/p/{shareId}`
 6. Click "Share Profile" → copy URL
-7. Open URL in incognito → view mode loads
+7. Open `http://localhost:8829/?p={shareId}` in incognito → view mode loads, and the address bar becomes `/p/{shareId}`
+
+Step 7 uses the query form deliberately: `scripts/serve.py` serves no `404.html`
+for an unknown path, so pasting the copied `/p/{shareId}` locally gets a bare
+directory listing or a 404 from `http.server`, not the app. The `404.html`
+redirect that makes the copied link work is only observable on the published
+site, so it belongs to the post-push checks rather than to this list.
 
 Worth checking by hand after touching the map or the panel:
 

@@ -30,16 +30,20 @@
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:image" content="https://fitprofile.neorgon.com/og-preview.jpg">
-  <link rel="stylesheet" href="css/style.css">
+  <!-- Every same-origin asset below is ROOT-ABSOLUTE on purpose. This page is
+       also what a share link resolves to: /p/<shareId> is bounced here by
+       404.html, and any relative path would have resolved against /p/ and
+       404ed. Keep the leading slash when adding one. -->
+  <link rel="stylesheet" href="/css/style.css">
   <!-- Neorgon Header Kit (vendored; ?header=live swaps CSS to CDN) -->
   <script>(function(){var m=location.search.match(/[?&]theme=([\w-]+)/)||document.cookie.match(/(?:^|;\s*)neo_theme=([\w-]+)/);if(m&&m[1]!=='default')document.documentElement.dataset.theme=decodeURIComponent(m[1]);})();</script>
-  <link rel="stylesheet" href="css/neorgon-header.css">
-  <link rel="stylesheet" href="css/neorgon-themes.css">
+  <link rel="stylesheet" href="/css/neorgon-header.css">
+  <link rel="stylesheet" href="/css/neorgon-themes.css">
   <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/header/season.css">
-  <script defer src="js/neorgon-header.js"></script>
+  <script defer src="/js/neorgon-header.js"></script>
   <meta name="neo-repo" content="energon-a-secas/fitprofile-site">
-  <link rel="stylesheet" href="css/neorgon-footer.css">
-  <script defer src="js/neorgon-footer.js"></script>
+  <link rel="stylesheet" href="/css/neorgon-footer.css">
+  <script defer src="/js/neorgon-footer.js"></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -61,8 +65,8 @@
   <!-- Header: Pattern B (Auth only) -->
   <header class="header-bar" data-header-mode="content">
     <div class="header-logo">
-      <a href="./" class="header-title-link">
-        <img src="energon-classic-logo.png" class="header-logo-img" alt="">
+      <a href="/" class="header-title-link">
+        <img src="/energon-classic-logo.png" class="header-logo-img" alt="">
         <div class="header-title-wrap">
         <h1>FitProfile</h1>
         <div class="header-subtitle">Track measurements, brands, and style preferences</div>
@@ -152,6 +156,6 @@
   <footer class="neo-footer" data-footer-mode="minimal">
   </footer>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>

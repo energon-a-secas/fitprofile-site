@@ -11,6 +11,30 @@
   <meta name="neo-mark" content="on">
   <title>Not found | FitProfile</title>
   <meta name="robots" content="noindex">
+  <script>
+    /* Share links are handed out as /p/<shareId>, and GitHub Pages answers every
+       unknown path with this file. So recover the id here and hand it to the root
+       page through the query, which is answered with HTTP 200 and loads the app.
+       Without this, every link and QR code this site has ever produced ends on
+       the page below, including the owner's own reload after a first save.
+
+       In the head and before the stylesheet, so a real share link redirects
+       without painting a "not found" first. Self-contained for the same reason
+       the CSS is: a 404 that imports the site's modules breaks exactly when the
+       paths are already broken.
+
+       The pattern is the guard as well as the parser. Only nanoid's alphabet
+       reaches the query, so nothing here needs escaping, and a bare /p/, a
+       nested /p/a/b, or any other path falls through to the plain page. */
+    (function () {
+      var m = location.pathname.match(/^\/p\/([A-Za-z0-9_-]+)\/?$/);
+      if (!m) return;
+      var rest = location.search.length > 1 ? '&' + location.search.slice(1) : '';
+      // replace, not assign: the broken URL must not sit in history, or Back
+      // lands on it again and bounces straight forward.
+      location.replace('/?p=' + m[1] + rest + location.hash);
+    })();
+  </script>
   <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/styles/base.css">
   <style>
     /* Self-contained on purpose. A 404 that depends on the site's own CSS
