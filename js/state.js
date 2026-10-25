@@ -4,7 +4,7 @@
 import { safeGet, safeRemove, safeSet } from './neorgon-persist.js';
 
 // ── State management ─────────────────────────────────────────
-import { ConvexHttpClient } from "https://esm.sh/convex@1.16.2/browser";
+import { ConvexHttpClient } from "https://esm.sh/convex@1.21.0/browser";
 import { getDefaultProfile, normalizeProfile } from './data.js';
 
 export const convex = new ConvexHttpClient("https://adjoining-gnat-230.convex.cloud");
